@@ -32,10 +32,6 @@ export class TearGesture {
     canvas.addEventListener('pointercancel', () => this.onUp());
   }
 
-  get tearing() {
-    return this.active;
-  }
-
   onDown(e) {
     const strip = this.pack.strip;
     if (this.pack.open || strip.detached) return;
@@ -151,7 +147,7 @@ export class PackRotateGesture {
     this.vel = { x: 0, y: 0 };
 
     canvas.addEventListener('pointerdown', (e) => {
-      if (this.tear?.tearing) return; // tab grab wins
+      if (this.tear?.tearing || this.pack.open || this.pack.revealing) return; // tab grab / reveal wins
       this.dragging = true;
       this.last = { x: e.clientX, y: e.clientY };
       this.vel = { x: 0, y: 0 };
@@ -159,7 +155,7 @@ export class PackRotateGesture {
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (!this.dragging || this.tear?.tearing) return;
+      if (!this.dragging || this.tear?.tearing || this.pack.open) return;
       const dx = e.clientX - this.last.x;
       const dy = e.clientY - this.last.y;
       this.last = { x: e.clientX, y: e.clientY };

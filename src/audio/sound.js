@@ -11,6 +11,7 @@
 //   setTearVelocity(v, dt)      scrub bed + spawn crackles (v = progress/sec)
 //   pop()                       strip detach
 //   haptic(pattern)             navigator.vibrate wrapper
+//   stCommon/stUncommon/stRare/stUltra/stSecret()   rarity reveal stingers
 
 export class SoundManager {
   constructor() {
@@ -146,6 +147,64 @@ export class SoundManager {
 
     setTimeout(() => this.crackle(0.35), 40);
     setTimeout(() => this.crackle(0.2), 110);
+  }
+
+  // --- rarity reveal stingers (fired at the flip midpoint) -------------------
+
+  // One enveloped tone. freq can ramp from->to for sweeps.
+  tone({ type = 'sine', from = 440, to = null, dur = 0.3, amp = 0.25, delay = 0, attack = 0.005 } = {}) {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t);
+    if (to) osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(amp, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g).connect(this.master);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  }
+
+  stCommon() {
+    this.unlock();
+    this.tone({ type: 'sine', from: 320, to: 200, dur: 0.12, amp: 0.18 });
+  }
+
+  stUncommon() {
+    this.unlock();
+    this.tone({ type: 'triangle', from: 880, dur: 0.4, amp: 0.18 });
+    this.tone({ type: 'sine', from: 1320, dur: 0.5, amp: 0.1, delay: 0.04 });
+  }
+
+  stRare() {
+    this.unlock();
+    this.tone({ type: 'triangle', from: 520, to: 1040, dur: 0.5, amp: 0.22 });
+    this.tone({ type: 'sine', from: 780, to: 1560, dur: 0.55, amp: 0.12, delay: 0.02 });
+  }
+
+  stUltra() {
+    this.unlock();
+    const notes = [523, 659, 784, 1046]; // C E G C
+    notes.forEach((f, i) => this.tone({
+      type: 'triangle', from: f, dur: 0.6 - i * 0.05, amp: 0.2, delay: i * 0.07,
+    }));
+    this.tone({ type: 'sine', from: 130, to: 90, dur: 0.5, amp: 0.3 });
+  }
+
+  stSecret() {
+    this.unlock();
+    this.tone({ type: 'sine', from: 160, to: 55, dur: 1.1, amp: 0.45 });
+    const chord = [392, 494, 587, 784, 988];
+    chord.forEach((f, i) => this.tone({
+      type: 'sawtooth', from: f * 0.5, to: f, dur: 1.0, amp: 0.12, delay: i * 0.05,
+    }));
+    for (let i = 0; i < 6; i++) {
+      this.tone({ type: 'sine', from: 1500 + Math.random() * 2500, dur: 0.4, amp: 0.06, delay: 0.3 + i * 0.08 });
+    }
+    this.haptic([20, 40, 20, 60, 30, 90]);
   }
 }
 
