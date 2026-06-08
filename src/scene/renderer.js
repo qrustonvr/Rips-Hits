@@ -6,6 +6,7 @@ import { SoundManager } from '../audio/sound.js';
 import { Particles } from './effects/particles.js';
 import { RevealController } from './cards/revealController.js';
 import { openPack } from '../game/pulls.js';
+import { CardSource } from '../game/cardSource.js';
 
 export class SceneManager {
   constructor(canvas) {
@@ -48,10 +49,17 @@ export class SceneManager {
 
     window.addEventListener('pack:open',       () => this.reveal.begin(openPack(this.game)));
     window.addEventListener('game:ripAnother', () => this.ripAnother());
-    window.addEventListener('game:setGame',    (e) => { if (e.detail?.game) this.game = e.detail.game; });
 
-    // When the open screen is entered (navigated to), reset if no reveal is
-    // active so the player always sees a fresh un-torn pack.
+    // When pack selection changes, update game id and rebuild the pack model
+    // (so the correct art texture shows before the user rips it open).
+    window.addEventListener('game:setGame', (e) => {
+      if (e.detail?.game && e.detail.game !== this.game) {
+        this.game = e.detail.game;
+        if (!this.reveal.active) this.buildPack();
+      }
+    });
+
+    // When the open screen is entered, reset to a fresh pack if idle.
     window.addEventListener('game:enterOpen', () => {
       if (!this.reveal.active) this.ripAnother();
     });
@@ -66,10 +74,11 @@ export class SceneManager {
 
   buildPack() {
     if (this.pack) this.scene.remove(this.pack.group);
-    this.pack = createPack();
+    // Read pack art path from the JSON definition so each pack has its own texture.
+    const packTexture = CardSource.getSet(this.game)?.packTexture ?? null;
+    this.pack = createPack(packTexture);
     this.scene.add(this.pack.group);
 
-    // Re-create gestures bound to the new pack object.
     this.tearGesture   = new TearGesture(this.canvas, this.camera, this.pack, this.sound);
     this.rotateGesture = new PackRotateGesture(this.canvas, this.pack, this.tearGesture);
     if (this.reveal) this.reveal.pack = this.pack;
