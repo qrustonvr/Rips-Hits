@@ -262,19 +262,19 @@ html, body {
 
 .pack-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
 }
 .pack-tile {
   display: flex; flex-direction: column; align-items: center; gap: 0;
   background: var(--surface);
   border: 1px solid #ffffff12;
-  border-radius: 16px;
+  border-radius: 12px;
   padding: 0;
   overflow: hidden;
   cursor: pointer;
   transition: transform 100ms ease, border-color 120ms ease;
-  aspect-ratio: 1 / 1.15;
+  aspect-ratio: 1 / 1.2;
 }
 .pack-tile:active   { transform: scale(0.96); }
 .pack-tile:hover    { border-color: #ffffff28; }
@@ -291,8 +291,8 @@ html, body {
   filter: drop-shadow(0 4px 16px #000a);
 }
 .pack-tile-label {
-  width: 100%; padding: 10px 12px;
-  font-size: 13px; font-weight: 700;
+  width: 100%; padding: 6px 6px;
+  font-size: 10px; font-weight: 700;
   text-align: center; color: var(--text);
   background: #ffffff08;
   border-top: 1px solid #ffffff0e;
@@ -309,13 +309,13 @@ html, body {
 
 .coll-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
   overflow-y: auto;
   padding-bottom: 8px;
 }
 .coll-item {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .coll-img-wrap {
   position: relative; width: 100%;
@@ -336,14 +336,14 @@ html, body {
   border-radius: 8px;
 }
 .coll-name {
-  font-size: 10px; font-weight: 600;
+  font-size: 8px; font-weight: 600;
   color: var(--text);
   text-align: center;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   width: 100%;
 }
 .coll-pill {
-  font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
-  padding: 2px 7px; border-radius: 999px;
+  font-size: 7px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 1px 5px; border-radius: 999px;
   text-transform: uppercase;
 }
