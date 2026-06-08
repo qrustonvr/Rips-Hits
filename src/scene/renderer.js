@@ -92,6 +92,7 @@ export class SceneManager {
   setActive(active) {
     this.active = active;
     this.canvas.style.visibility = active ? 'visible' : 'hidden';
+    if (active) this.resize();
   }
 
   resize() {

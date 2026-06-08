@@ -10,7 +10,7 @@ export const open = {
     el.innerHTML = `
       <div class="open-counter ui" id="op-counter" hidden></div>
 
-      <div class="open-center ui">
+      <div class="open-center">
         <div class="reveal-name" id="op-name" hidden>
           <span class="rv-pill" id="op-pill"></span>
           <span class="rv-title" id="op-title"></span>
