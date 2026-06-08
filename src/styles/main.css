@@ -205,6 +205,39 @@ html, body {
 .sum-count { color: var(--text-dim); font-weight: 700; }
 .sum-actions { display: flex; flex-direction: column; gap: 10px; }
 
+/* ===== Home screen ===== */
+
+/* ===== Home screen ===== */
+.home-wrap {
+  display: flex; flex-direction: column; height: 100%;
+  padding: max(16px, env(safe-area-inset-top)) 20px 20px;
+  gap: 24px;
+}
+.home-header {}
+
+.pack-shelf {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pack-card {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; padding: 18px 16px;
+  background: var(--surface);
+  border: 1px solid #ffffff12;
+  border-radius: 18px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, transform 100ms ease, border-color 120ms ease;
+}
+.pack-card:active { transform: scale(0.97); background: color-mix(in srgb, var(--surface) 80%, var(--accent)); }
+.pack-card:hover  { border-color: #ffffff28; }
+.pack-emoji { font-size: 22px; font-weight: 700; flex-shrink: 0; color: var(--text-dim); }
+.pack-info  { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.pack-name  { font-size: 16px; font-weight: 700; color: var(--text); }
+.pack-tag   { font-size: 12px; color: var(--text-dim); }
+.pack-count { font-size: 11px; color: var(--accent); font-weight: 700; margin-top: 2px; }
+.pack-arrow { font-size: 22px; color: var(--text-dim); flex-shrink: 0; }
+
+/* ===== Buttons ===== */
 .btn-primary, .btn-ghost {
   width: 100%; padding: 13px; border-radius: 12px;
   font-size: 15px; font-weight: 700; cursor: pointer;

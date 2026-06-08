@@ -17,5 +17,5 @@ const router = new Router(document.getElementById('screen'), {
   profile,
 }, scene);
 
-router.go('open'); // land straight on the money shot
+router.go('home');
 scene.start();

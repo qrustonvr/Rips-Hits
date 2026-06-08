@@ -2,27 +2,62 @@
 // registered here. holoMask is optional (white = holo region); without it,
 // holoPattern picks a preset shader pattern.
 //
-// rarity: common | uncommon | rare | holo | ultra | secret
+// rarity (raw game string): common | uncommon | rare | rare-holo | ultra | secret
+//   Pokemon also accepts: ex | gx | v | vmax | vstar | alt-art | gold
+//   One Piece also accepts: super-rare | special-rare | leader-rare
+//
+// setId: matches the key in SETS (same as game for now; will differ when
+//   multiple sets per game are supported).
 
 export const SETS = {
   pokemon: {
-    name: 'Pokémon TCG',
+    id: 'pokemon',
+    name: 'Pokemon TCG',
+    game: 'pokemon',
     packTexture: '/packs/pokemon.png',
     cardsPerPack: 10,
-    // pull weights per slot are defined in pulls.js
+    cardCount: 10,
+    releaseDate: '2024-01-15',
   },
   onepiece: {
+    id: 'onepiece',
     name: 'One Piece Card Game',
+    game: 'onepiece',
     packTexture: '/packs/onepiece.png',
     cardsPerPack: 12,
+    cardCount: 10,
+    releaseDate: '2024-03-08',
   },
 };
 
 export const CARDS = [
-  // Placeholder entries until real scans arrive.
-  { id: 'pkm-001', game: 'pokemon', name: 'Placeholder Common',  rarity: 'common', art: null, holoPattern: null },
-  { id: 'pkm-002', game: 'pokemon', name: 'Placeholder Holo',    rarity: 'holo',   art: null, holoPattern: 'cosmos' },
-  { id: 'pkm-003', game: 'pokemon', name: 'Placeholder Ultra',   rarity: 'ultra',  art: null, holoPattern: 'full-art' },
-  { id: 'op-001',  game: 'onepiece', name: 'Placeholder Common', rarity: 'common', art: null, holoPattern: null },
-  { id: 'op-002',  game: 'onepiece', name: 'Placeholder SR',     rarity: 'ultra',  art: null, holoPattern: 'vertical-beam' },
+  // --- Pokemon TCG (10 cards, all 5 rarity tiers covered) ---
+  { id: 'pkm-001', setId: 'pokemon', game: 'pokemon', number: '001', name: 'Emberling',     rarity: 'common',   art: null, holoPattern: null },
+  { id: 'pkm-002', setId: 'pokemon', game: 'pokemon', number: '002', name: 'Tidewhisk',     rarity: 'common',   art: null, holoPattern: null },
+  { id: 'pkm-003', setId: 'pokemon', game: 'pokemon', number: '003', name: 'Voltfang',      rarity: 'common',   art: null, holoPattern: null },
+  { id: 'pkm-004', setId: 'pokemon', game: 'pokemon', number: '004', name: 'Mosswing',      rarity: 'common',   art: null, holoPattern: null },
+  { id: 'pkm-005', setId: 'pokemon', game: 'pokemon', number: '005', name: 'Frostnip',      rarity: 'uncommon', art: null, holoPattern: null },
+  { id: 'pkm-006', setId: 'pokemon', game: 'pokemon', number: '006', name: 'Gustling',      rarity: 'uncommon', art: null, holoPattern: null },
+  { id: 'pkm-007', setId: 'pokemon', game: 'pokemon', number: '007', name: 'Petalux',       rarity: 'rare-holo',art: null, holoPattern: 'cosmos' },
+  { id: 'pkm-008', setId: 'pokemon', game: 'pokemon', number: '008', name: 'Quartzback',    rarity: 'rare-holo',art: null, holoPattern: 'cosmos' },
+  { id: 'pkm-009', setId: 'pokemon', game: 'pokemon', number: '009', name: 'Cindertail ex', rarity: 'ex',       art: null, holoPattern: 'full-art' },
+  { id: 'pkm-010', setId: 'pokemon', game: 'pokemon', number: '010', name: 'Nimbufin Gold', rarity: 'gold',     art: null, holoPattern: 'vertical-beam' },
+
+  // --- One Piece Card Game (10 cards, all 5 rarity tiers covered) ---
+  { id: 'op-001', setId: 'onepiece', game: 'onepiece', number: '001', name: 'Gale Cutter',   rarity: 'common',     art: null, holoPattern: null },
+  { id: 'op-002', setId: 'onepiece', game: 'onepiece', number: '002', name: 'Iron Vow',       rarity: 'common',     art: null, holoPattern: null },
+  { id: 'op-003', setId: 'onepiece', game: 'onepiece', number: '003', name: 'Salt Reaver',    rarity: 'common',     art: null, holoPattern: null },
+  { id: 'op-004', setId: 'onepiece', game: 'onepiece', number: '004', name: 'Tide Marshal',   rarity: 'common',     art: null, holoPattern: null },
+  { id: 'op-005', setId: 'onepiece', game: 'onepiece', number: '005', name: 'Ember Oath',     rarity: 'uncommon',   art: null, holoPattern: null },
+  { id: 'op-006', setId: 'onepiece', game: 'onepiece', number: '006', name: 'Storm Caller',   rarity: 'uncommon',   art: null, holoPattern: null },
+  { id: 'op-007', setId: 'onepiece', game: 'onepiece', number: '007', name: 'Bone Captain',   rarity: 'rare',       art: null, holoPattern: 'cosmos' },
+  { id: 'op-008', setId: 'onepiece', game: 'onepiece', number: '008', name: 'Coral Duelist',  rarity: 'rare',       art: null, holoPattern: 'cosmos' },
+  { id: 'op-009', setId: 'onepiece', game: 'onepiece', number: '009', name: 'Void Sovereign', rarity: 'super-rare', art: null, holoPattern: 'full-art' },
+  { id: 'op-010', setId: 'onepiece', game: 'onepiece', number: '010', name: 'Sea Tyrant',     rarity: 'leader-rare',art: null, holoPattern: 'vertical-beam' },
 ];
+
+// Convenience: get all static cards for a given setId (async signature for
+// forward-compatibility with Phase 10 price fetching).
+export async function getCardsBySet(setId) {
+  return CARDS.filter((c) => c.setId === setId);
+}

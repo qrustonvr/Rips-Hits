@@ -1,30 +1,78 @@
 // CardSource adapter.
 //
 // The rest of the app talks ONLY to this module — it never sees a
-// game-specific rarity string. Each game registers a native→normalized
+// game-specific rarity string. Each game registers a native-normalized
 // rarity map here, and the adapter exposes a uniform pool keyed by the 5
-// normalized tiers. Swapping in real Pokémon / One Piece scans later means
+// normalized tiers. Swapping in real Pokemon / One Piece scans later means
 // dropping art + registry rows; nothing downstream changes.
 
 import { SETS, CARDS } from '../data/cards.js';
 import { TIER } from './rarity.js';
 
-// Native rarity strings (as they appear in data/cards.js) → normalized tier.
-const RARITY_MAP = {
-  common: TIER.COMMON,
-  uncommon: TIER.UNCOMMON,
-  rare: TIER.RARE,
-  holo: TIER.RARE,          // holo rare reads as RARE in the normalized model
-  ultra: TIER.ULTRA_RARE,
-  secret: TIER.SECRET_RARE,
+// Per-game rarity maps: native string (lowercase) -> normalized TIER.
+// Covers real TCG print strings so real card data drops in without code changes.
+const RARITY_MAPS = {
+  pokemon: {
+    'common':        TIER.COMMON,
+    'uncommon':      TIER.UNCOMMON,
+    'rare':          TIER.RARE,
+    'rare holo':     TIER.RARE,
+    'holo':          TIER.RARE,
+    'rare-holo':     TIER.RARE,
+    'ex':            TIER.ULTRA_RARE,
+    'gx':            TIER.ULTRA_RARE,
+    'v':             TIER.ULTRA_RARE,
+    'vmax':          TIER.ULTRA_RARE,
+    'vstar':         TIER.ULTRA_RARE,
+    'ultra':         TIER.ULTRA_RARE,
+    'ultra rare':    TIER.ULTRA_RARE,
+    'secret':        TIER.SECRET_RARE,
+    'secret rare':   TIER.SECRET_RARE,
+    'alt-art':       TIER.SECRET_RARE,
+    'alt art':       TIER.SECRET_RARE,
+    'gold':          TIER.SECRET_RARE,
+    'rainbow':       TIER.SECRET_RARE,
+    'rainbow rare':  TIER.SECRET_RARE,
+  },
+  onepiece: {
+    'common':        TIER.COMMON,
+    'uncommon':      TIER.UNCOMMON,
+    'rare':          TIER.RARE,
+    'super rare':    TIER.ULTRA_RARE,
+    'super-rare':    TIER.ULTRA_RARE,
+    'special rare':  TIER.ULTRA_RARE,
+    'special-rare':  TIER.ULTRA_RARE,
+    'ultra':         TIER.ULTRA_RARE,
+    'secret rare':   TIER.SECRET_RARE,
+    'secret':        TIER.SECRET_RARE,
+    'leader rare':   TIER.SECRET_RARE,
+    'leader-rare':   TIER.SECRET_RARE,
+  },
 };
 
-export function normalizeRarity(native) {
-  return RARITY_MAP[native] ?? TIER.COMMON;
+// Fallback map for simplified internal strings or unknown games.
+const RARITY_MAP_FALLBACK = {
+  'common':   TIER.COMMON,
+  'uncommon': TIER.UNCOMMON,
+  'rare':     TIER.RARE,
+  'holo':     TIER.RARE,
+  'ultra':    TIER.ULTRA_RARE,
+  'secret':   TIER.SECRET_RARE,
+};
+
+// normalizeRarity(game, rawString) - game-aware, matches TASKS.MD Phase 2 spec.
+// Also accepts normalizeRarity(rawString) for backward compat (single-arg form).
+export function normalizeRarity(gameOrNative, rawString) {
+  if (rawString === undefined) {
+    const key = String(gameOrNative).toLowerCase().trim();
+    return RARITY_MAP_FALLBACK[key] ?? TIER.COMMON;
+  }
+  const map = RARITY_MAPS[gameOrNative] ?? RARITY_MAP_FALLBACK;
+  const key = String(rawString).toLowerCase().trim();
+  return map[key] ?? RARITY_MAP_FALLBACK[key] ?? TIER.COMMON;
 }
 
-// Holo preset assigned to a tier when a card doesn't specify one. Keeps the
-// shader busy on hits even for placeholder art.
+// Holo preset assigned to a tier when a card doesn't specify one.
 const DEFAULT_HOLO = {
   [TIER.COMMON]: null,
   [TIER.UNCOMMON]: 'cracked-ice',
@@ -33,7 +81,7 @@ const DEFAULT_HOLO = {
   [TIER.SECRET_RARE]: 'vertical-beam',
 };
 
-// Flavor names so placeholder pulls don't all read "Placeholder Common".
+// Flavor names so procedurally-padded pulls have variety.
 const FLAVOR = {
   pokemon: ['Emberling', 'Tidewhisk', 'Voltfang', 'Mosswing', 'Cindertail',
             'Frostnip', 'Gustling', 'Petalux', 'Quartzback', 'Nimbufin'],
@@ -44,7 +92,7 @@ const FLAVOR = {
 function flavorName(game, tier, i) {
   const pool = FLAVOR[game] ?? FLAVOR.pokemon;
   const base = pool[i % pool.length];
-  const suffix = { [TIER.RARE]: ' ◆', [TIER.ULTRA_RARE]: ' ★', [TIER.SECRET_RARE]: ' ✦' }[tier] ?? '';
+  const suffix = { [TIER.RARE]: ' (R)', [TIER.ULTRA_RARE]: ' (UR)', [TIER.SECRET_RARE]: ' (SR)' }[tier] ?? '';
   return base + suffix;
 }
 
@@ -59,11 +107,13 @@ function buildPool(game) {
 
   for (const c of CARDS) {
     if (c.game !== game) continue;
-    const tier = normalizeRarity(c.rarity);
+    const tier = normalizeRarity(c.game, c.rarity);
     pool[tier].push({
       id: c.id,
       game,
       name: c.name,
+      setId: c.setId ?? game,
+      number: c.number ?? null,
       tier,
       art: c.art ?? null,
       holoPattern: c.holoPattern ?? DEFAULT_HOLO[tier],
@@ -80,9 +130,11 @@ function buildPool(game) {
     let i = pool[tier].length;
     while (pool[tier].length < want[tier]) {
       pool[tier].push({
-        id: `${game}-${tier.toLowerCase()}-${i}`,
+        id: game + '-' + tier.toLowerCase() + '-' + i,
         game,
         name: flavorName(game, tier, i),
+        setId: game,
+        number: null,
         tier,
         art: null,
         holoPattern: DEFAULT_HOLO[tier],
