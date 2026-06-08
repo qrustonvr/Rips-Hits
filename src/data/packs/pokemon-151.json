@@ -1,0 +1,65 @@
+{
+  "id": "pokemon-151",
+  "name": "Pokémon 151",
+  "game": "pokemon",
+  "cardsPerPack": 10,
+  "packTexture": "/packs/pokemon.png",
+  "releaseDate": "2023-09-22",
+  "pool": {
+    "COMMON": [
+      { "id": "sv03.5-1",   "name": "Bulbasaur" },
+      { "id": "sv03.5-4",   "name": "Charmander" },
+      { "id": "sv03.5-7",   "name": "Squirtle" },
+      { "id": "sv03.5-10",  "name": "Caterpie" },
+      { "id": "sv03.5-13",  "name": "Weedle" },
+      { "id": "sv03.5-16",  "name": "Pidgey" },
+      { "id": "sv03.5-19",  "name": "Rattata" },
+      { "id": "sv03.5-21",  "name": "Spearow" },
+      { "id": "sv03.5-23",  "name": "Ekans" },
+      { "id": "sv03.5-27",  "name": "Sandshrew" },
+      { "id": "sv03.5-29",  "name": "Nidoran♀" },
+      { "id": "sv03.5-32",  "name": "Nidoran♂" },
+      { "id": "sv03.5-35",  "name": "Clefairy" },
+      { "id": "sv03.5-37",  "name": "Vulpix" },
+      { "id": "sv03.5-39",  "name": "Jigglypuff" },
+      { "id": "sv03.5-41",  "name": "Zubat" },
+      { "id": "sv03.5-43",  "name": "Oddish" },
+      { "id": "sv03.5-46",  "name": "Paras" },
+      { "id": "sv03.5-48",  "name": "Venonat" },
+      { "id": "sv03.5-50",  "name": "Diglett" }
+    ],
+    "UNCOMMON": [
+      { "id": "sv03.5-2",   "name": "Ivysaur" },
+      { "id": "sv03.5-5",   "name": "Charmeleon" },
+      { "id": "sv03.5-8",   "name": "Wartortle" },
+      { "id": "sv03.5-11",  "name": "Metapod" },
+      { "id": "sv03.5-14",  "name": "Kakuna" },
+      { "id": "sv03.5-17",  "name": "Pidgeotto" },
+      { "id": "sv03.5-20",  "name": "Raticate" },
+      { "id": "sv03.5-24",  "name": "Arbok" },
+      { "id": "sv03.5-28",  "name": "Sandslash" },
+      { "id": "sv03.5-44",  "name": "Gloom" }
+    ],
+    "RARE": [
+      { "id": "sv03.5-3",   "name": "Venusaur ex" },
+      { "id": "sv03.5-6",   "name": "Charizard ex" },
+      { "id": "sv03.5-9",   "name": "Blastoise ex" },
+      { "id": "sv03.5-36",  "name": "Clefable ex" },
+      { "id": "sv03.5-40",  "name": "Wigglytuff ex" },
+      { "id": "sv03.5-45",  "name": "Vileplume ex" }
+    ],
+    "ULTRA_RARE": [
+      { "id": "sv03.5-167", "name": "Venusaur ex" },
+      { "id": "sv03.5-168", "name": "Charizard ex" },
+      { "id": "sv03.5-169", "name": "Blastoise ex" },
+      { "id": "sv03.5-172", "name": "Alakazam ex" },
+      { "id": "sv03.5-174", "name": "Gengar ex" }
+    ],
+    "SECRET_RARE": [
+      { "id": "sv03.5-182", "name": "Charizard ex" },
+      { "id": "sv03.5-183", "name": "Blastoise ex" },
+      { "id": "sv03.5-184", "name": "Alakazam ex" },
+      { "id": "sv03.5-205", "name": "Mew ex" }
+    ]
+  }
+}

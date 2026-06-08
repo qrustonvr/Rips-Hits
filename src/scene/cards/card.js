@@ -38,7 +38,7 @@ export function createCard(data) {
   const frontMat = createHoloMaterial({
     color: r.color,
     pattern: data.holoPattern,
-    intensity: 0,                 // ramps up at reveal
+    intensity: 0,
     artTexture: null,
   });
   const front = new THREE.Mesh(frontGeo, frontMat);
@@ -68,9 +68,23 @@ export function createCard(data) {
     setHoloIntensity(v) { holo.setIntensity(v); },
     setHoloTilt(x, y) { holo.setTilt(x, y); },
     setTime(t) { holo.setTime(t); },
+
+    // Load a card-art image URL into the holo shader.
+    // Safe to call at any time — the texture swaps in when ready.
+    setArt(url) {
+      if (!url) return;
+      new THREE.TextureLoader().load(url, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        frontMat.uniforms.uArt.value = tex;
+        frontMat.uniforms.uHasArt.value = 1.0;
+      });
+    },
+
     dispose() {
       frontGeo.dispose(); backGeo.dispose();
       frontMat.dispose(); backMat.dispose(); glowMat.dispose();
+      const artTex = frontMat.uniforms?.uArt?.value;
+      if (artTex && artTex.dispose) artTex.dispose();
     },
   };
 }

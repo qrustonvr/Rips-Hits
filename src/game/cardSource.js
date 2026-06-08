@@ -1,185 +1,161 @@
 // CardSource adapter.
 //
-// The rest of the app talks ONLY to this module — it never sees a
-// game-specific rarity string. Each game registers a native-normalized
-// rarity map here, and the adapter exposes a uniform pool keyed by the 5
-// normalized tiers. Swapping in real Pokemon / One Piece scans later means
-// dropping art + registry rows; nothing downstream changes.
+// Reads pack definitions from src/data/packs/*.json (via cards.js).
+// Each pack has a `pool` object keyed by normalized TIER strings, with arrays
+// of { id, name } card stubs.
+//
+// At pick time we return a card object with art: null — the reveal controller
+// calls tcgdex.js after the flip to load the live image + price.
 
-import { SETS, CARDS } from '../data/cards.js';
+import { PACKS } from '../data/cards.js';
 import { TIER } from './rarity.js';
 
-// Per-game rarity maps: native string (lowercase) -> normalized TIER.
-// Covers real TCG print strings so real card data drops in without code changes.
-const RARITY_MAPS = {
-  pokemon: {
-    'common':        TIER.COMMON,
-    'uncommon':      TIER.UNCOMMON,
-    'rare':          TIER.RARE,
-    'rare holo':     TIER.RARE,
-    'holo':          TIER.RARE,
-    'rare-holo':     TIER.RARE,
-    'ex':            TIER.ULTRA_RARE,
-    'gx':            TIER.ULTRA_RARE,
-    'v':             TIER.ULTRA_RARE,
-    'vmax':          TIER.ULTRA_RARE,
-    'vstar':         TIER.ULTRA_RARE,
-    'ultra':         TIER.ULTRA_RARE,
-    'ultra rare':    TIER.ULTRA_RARE,
-    'secret':        TIER.SECRET_RARE,
-    'secret rare':   TIER.SECRET_RARE,
-    'alt-art':       TIER.SECRET_RARE,
-    'alt art':       TIER.SECRET_RARE,
-    'gold':          TIER.SECRET_RARE,
-    'rainbow':       TIER.SECRET_RARE,
-    'rainbow rare':  TIER.SECRET_RARE,
-  },
-  onepiece: {
-    'common':        TIER.COMMON,
-    'uncommon':      TIER.UNCOMMON,
-    'rare':          TIER.RARE,
-    'super rare':    TIER.ULTRA_RARE,
-    'super-rare':    TIER.ULTRA_RARE,
-    'special rare':  TIER.ULTRA_RARE,
-    'special-rare':  TIER.ULTRA_RARE,
-    'ultra':         TIER.ULTRA_RARE,
-    'secret rare':   TIER.SECRET_RARE,
-    'secret':        TIER.SECRET_RARE,
-    'leader rare':   TIER.SECRET_RARE,
-    'leader-rare':   TIER.SECRET_RARE,
-  },
+// ---------------------------------------------------------------------------
+// Rarity normalization
+// Maps TCGdex rarity strings → our 5 normalized TIER values.
+// ---------------------------------------------------------------------------
+const RARITY_MAP = {
+  // Common
+  'common':                    TIER.COMMON,
+  // Uncommon
+  'uncommon':                  TIER.UNCOMMON,
+  // Rare
+  'rare':                      TIER.RARE,
+  'rare holo':                 TIER.RARE,
+  'rare holo v':               TIER.RARE,
+  'rare holo vstar':           TIER.RARE,
+  'rare holo vmax':            TIER.RARE,
+  'rare holo lv.x':            TIER.RARE,
+  'rare holo ex':              TIER.RARE,
+  'rare holo gx':              TIER.RARE,
+  'amazing rare':              TIER.RARE,
+  // Ultra Rare
+  'double rare':               TIER.ULTRA_RARE,
+  'ultra rare':                TIER.ULTRA_RARE,
+  'rare ultra':                TIER.ULTRA_RARE,
+  'rare rainbow':              TIER.ULTRA_RARE,
+  'rare prism star':           TIER.ULTRA_RARE,
+  'radiant rare':              TIER.ULTRA_RARE,
+  'trainer gallery rare holo': TIER.ULTRA_RARE,
+  'ace spec rare':             TIER.ULTRA_RARE,
+  // Secret Rare
+  'illustration rare':         TIER.SECRET_RARE,
+  'special illustration rare': TIER.SECRET_RARE,
+  'hyper rare':                TIER.SECRET_RARE,
+  'rare secret':               TIER.SECRET_RARE,
+  'rare shiny':                TIER.SECRET_RARE,
+  'rare shiny gx':             TIER.SECRET_RARE,
+  'shiny rare':                TIER.SECRET_RARE,
+  'shiny ultra rare':          TIER.SECRET_RARE,
 };
 
-// Fallback map for simplified internal strings or unknown games.
-const RARITY_MAP_FALLBACK = {
-  'common':   TIER.COMMON,
-  'uncommon': TIER.UNCOMMON,
-  'rare':     TIER.RARE,
-  'holo':     TIER.RARE,
-  'ultra':    TIER.ULTRA_RARE,
-  'secret':   TIER.SECRET_RARE,
-};
-
-// normalizeRarity(game, rawString) - game-aware, matches TASKS.MD Phase 2 spec.
-// Also accepts normalizeRarity(rawString) for backward compat (single-arg form).
-export function normalizeRarity(gameOrNative, rawString) {
-  if (rawString === undefined) {
-    const key = String(gameOrNative).toLowerCase().trim();
-    return RARITY_MAP_FALLBACK[key] ?? TIER.COMMON;
-  }
-  const map = RARITY_MAPS[gameOrNative] ?? RARITY_MAP_FALLBACK;
+export function normalizeRarity(rawString) {
+  if (!rawString) return TIER.COMMON;
   const key = String(rawString).toLowerCase().trim();
-  return map[key] ?? RARITY_MAP_FALLBACK[key] ?? TIER.COMMON;
+  return RARITY_MAP[key] ?? TIER.COMMON;
 }
 
-// Holo preset assigned to a tier when a card doesn't specify one.
+// ---------------------------------------------------------------------------
+// Holo pattern assigned when tier has no card-specific override.
+// ---------------------------------------------------------------------------
 const DEFAULT_HOLO = {
-  [TIER.COMMON]: null,
-  [TIER.UNCOMMON]: 'cracked-ice',
-  [TIER.RARE]: 'cosmos',
-  [TIER.ULTRA_RARE]: 'full-art',
+  [TIER.COMMON]:      null,
+  [TIER.UNCOMMON]:    'cracked-ice',
+  [TIER.RARE]:        'cosmos',
+  [TIER.ULTRA_RARE]:  'full-art',
   [TIER.SECRET_RARE]: 'vertical-beam',
 };
 
-// Flavor names so procedurally-padded pulls have variety.
-const FLAVOR = {
-  pokemon: ['Emberling', 'Tidewhisk', 'Voltfang', 'Mosswing', 'Cindertail',
-            'Frostnip', 'Gustling', 'Petalux', 'Quartzback', 'Nimbufin'],
-  onepiece: ['Gale Cutter', 'Iron Vow', 'Salt Reaver', 'Tide Marshal',
-             'Ember Oath', 'Storm Caller', 'Bone Captain', 'Coral Duelist'],
-};
-
-function flavorName(game, tier, i) {
-  const pool = FLAVOR[game] ?? FLAVOR.pokemon;
-  const base = pool[i % pool.length];
-  const suffix = { [TIER.RARE]: ' (R)', [TIER.ULTRA_RARE]: ' (UR)', [TIER.SECRET_RARE]: ' (SR)' }[tier] ?? '';
-  return base + suffix;
-}
-
-// Build a per-game pool grouped by normalized tier. Real registry cards come
-// first; we then pad each tier with procedural placeholders so every slot in
-// a pack can always be filled with variety.
-function buildPool(game) {
-  const pool = {
-    [TIER.COMMON]: [], [TIER.UNCOMMON]: [], [TIER.RARE]: [],
-    [TIER.ULTRA_RARE]: [], [TIER.SECRET_RARE]: [],
-  };
-
-  for (const c of CARDS) {
-    if (c.game !== game) continue;
-    const tier = normalizeRarity(c.game, c.rarity);
-    pool[tier].push({
-      id: c.id,
-      game,
-      name: c.name,
-      setId: c.setId ?? game,
-      number: c.number ?? null,
-      tier,
-      art: c.art ?? null,
-      holoPattern: c.holoPattern ?? DEFAULT_HOLO[tier],
-      basePrice: estPrice(tier),
-    });
-  }
-
-  // Pad so each tier has a reasonable bench of unique cards.
-  const want = {
-    [TIER.COMMON]: 16, [TIER.UNCOMMON]: 10, [TIER.RARE]: 8,
-    [TIER.ULTRA_RARE]: 5, [TIER.SECRET_RARE]: 3,
-  };
-  for (const tier of Object.keys(want)) {
-    let i = pool[tier].length;
-    while (pool[tier].length < want[tier]) {
-      pool[tier].push({
-        id: game + '-' + tier.toLowerCase() + '-' + i,
-        game,
-        name: flavorName(game, tier, i),
-        setId: game,
-        number: null,
-        tier,
-        art: null,
-        holoPattern: DEFAULT_HOLO[tier],
-        basePrice: estPrice(tier),
-      });
-      i++;
-    }
-  }
-  return pool;
-}
-
-// Plausible market price by tier (used until a real price source is wired in).
+// Plausible base price by tier (shown immediately; overwritten by live price).
 function estPrice(tier) {
   const ranges = {
-    [TIER.COMMON]: [0.05, 0.4],
-    [TIER.UNCOMMON]: [0.25, 1.5],
-    [TIER.RARE]: [1.0, 12],
-    [TIER.ULTRA_RARE]: [8, 80],
-    [TIER.SECRET_RARE]: [40, 400],
+    [TIER.COMMON]:      [0.05, 0.4],
+    [TIER.UNCOMMON]:    [0.25, 1.5],
+    [TIER.RARE]:        [1.0,  12],
+    [TIER.ULTRA_RARE]:  [8,    80],
+    [TIER.SECRET_RARE]: [40,   400],
   };
   const [lo, hi] = ranges[tier] ?? ranges[TIER.COMMON];
   return +(lo + Math.random() * (hi - lo)).toFixed(2);
 }
 
-const _poolCache = {};
+// ---------------------------------------------------------------------------
+// Build a rarity-indexed pool from a pack definition's `pool` buckets.
+// Each entry in a bucket is { id, name }; we enrich with tier + defaults.
+// ---------------------------------------------------------------------------
+function buildPool(pack) {
+  const pool = {
+    [TIER.COMMON]:      [],
+    [TIER.UNCOMMON]:    [],
+    [TIER.RARE]:        [],
+    [TIER.ULTRA_RARE]:  [],
+    [TIER.SECRET_RARE]: [],
+  };
 
+  for (const [tierKey, cards] of Object.entries(pack.pool ?? {})) {
+    const tier = TIER[tierKey] ?? TIER.COMMON;
+    for (const c of cards) {
+      pool[tier].push({
+        id:          c.id,
+        game:        pack.game,
+        name:        c.name,
+        setId:       pack.id,
+        number:      c.id.split('-').pop(),
+        tier,
+        art:         null,          // loaded at runtime via tcgdex.js
+        holoPattern: DEFAULT_HOLO[tier],
+        basePrice:   estPrice(tier),
+      });
+    }
+  }
+
+  return pool;
+}
+
+// ---------------------------------------------------------------------------
+// Internal caches
+// ---------------------------------------------------------------------------
+const _packMap   = {};   // packId → pack definition
+const _poolCache = {};   // packId → built pool
+
+// Index packs by their id field (used as "game" key throughout the app).
+for (const pack of PACKS) {
+  _packMap[pack.id] = pack;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 export const CardSource = {
+  // All packs as { id, name, game, cardsPerPack, packTexture, releaseDate }.
   getSets() {
-    return Object.entries(SETS).map(([id, s]) => ({ id, ...s }));
+    return PACKS.map(({ id, name, game, cardsPerPack, packTexture, releaseDate }) => ({
+      id, name, game, cardsPerPack, packTexture, releaseDate,
+    }));
   },
 
-  getSet(game) {
-    const s = SETS[game];
-    return s ? { id: game, ...s } : null;
+  getSet(packId) {
+    const p = _packMap[packId];
+    if (!p) return null;
+    const { id, name, game, cardsPerPack, packTexture, releaseDate } = p;
+    return { id, name, game, cardsPerPack, packTexture, releaseDate };
   },
 
-  // Pool for a game, grouped by normalized tier. Cached per session.
-  getPool(game) {
-    if (!_poolCache[game]) _poolCache[game] = buildPool(game);
-    return _poolCache[game];
+  // Pool for a pack, keyed by normalized tier. Cached per session.
+  getPool(packId) {
+    if (!_poolCache[packId]) {
+      const pack = _packMap[packId];
+      if (!pack) return null;
+      _poolCache[packId] = buildPool(pack);
+    }
+    return _poolCache[packId];
   },
 
-  // Pick a random card of a given tier (clones so callers can mutate freely).
-  pick(game, tier) {
-    const bucket = this.getPool(game)[tier];
+  // Pick a random card of a given tier from a pack (clone so callers can mutate).
+  pick(packId, tier) {
+    const pool = this.getPool(packId);
+    if (!pool) return null;
+    const bucket = pool[tier];
     if (!bucket || bucket.length === 0) return null;
     const c = bucket[(Math.random() * bucket.length) | 0];
     return { ...c };

@@ -13,7 +13,7 @@ export class SceneManager {
   constructor(canvas) {
     this.canvas = canvas;
     this.active = true;
-    this.game = 'onepiece';        // current pack/game (red foil = One Piece)
+    this.game = 'pokemon-151';     // current pack id — set when user picks a pack
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
