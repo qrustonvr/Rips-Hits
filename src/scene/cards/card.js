@@ -73,11 +73,22 @@ export function createCard(data) {
     // Safe to call at any time — the texture swaps in when ready.
     setArt(url) {
       if (!url) return;
-      new THREE.TextureLoader().load(url, (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        frontMat.uniforms.uArt.value = tex;
-        frontMat.uniforms.uHasArt.value = 1.0;
-      });
+      console.log('[card] setArt loading:', url);
+      const loader = new THREE.TextureLoader();
+      loader.crossOrigin = 'anonymous';
+      loader.load(
+        url,
+        (tex) => {
+          console.log('[card] art loaded OK:', url);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          frontMat.uniforms.uArt.value = tex;
+          frontMat.uniforms.uHasArt.value = 1.0;
+        },
+        undefined,
+        (err) => {
+          console.error('[card] art load FAILED:', url, err);
+        }
+      );
     },
 
     dispose() {

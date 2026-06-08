@@ -2,7 +2,7 @@
   "id": "pokemon-151",
   "name": "Pokémon 151",
   "game": "pokemon",
-  "cardsPerPack": 10,
+  "cardsPerPack": 5,
   "packTexture": "/packs/pokemon.png",
   "releaseDate": "2023-09-22",
   "pool": {

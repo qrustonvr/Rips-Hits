@@ -82,7 +82,9 @@ export class RevealController {
         // Load the card art into the 3D material.
         const artUrl = getImageUrl(tcgCard);
         if (artUrl) c.setArt(artUrl);
-      }).catch(() => { /* non-fatal — fall back to estimated price + no art */ });
+      }).catch((err) => {
+        console.error(`[reveal] TCGdex failed for card ${id}:`, err);
+      });
     });
   }
 
@@ -347,6 +349,7 @@ export class RevealController {
 function rank(tier) {
   return ['COMMON', 'UNCOMMON', 'RARE', 'ULTRA_RARE', 'SECRET_RARE'].indexOf(tier);
 }
+
 
 // Helper to read glow sprite opacity without exposing glowMat directly.
 function glowMat(c) {
