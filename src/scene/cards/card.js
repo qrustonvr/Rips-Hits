@@ -16,7 +16,9 @@ export function createCard(data) {
   const r = rarityOf(data.tier);
   const outer = new THREE.Group();
 
-  // --- glow halo (behind, slightly larger; only the margin shows) ---
+  // --- glow halo (behind card, slightly larger; only the margin shows) ---
+  // renderOrder = -1 ensures it renders before the card meshes, so it never
+  // clips through them. depthTest = false means it never gets occluded.
   const glowMat = new THREE.SpriteMaterial({
     map: glowTexture(),
     color: new THREE.Color(r.color),
@@ -24,10 +26,12 @@ export function createCard(data) {
     opacity: 0,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
+    depthTest: false,
   });
   const glow = new THREE.Sprite(glowMat);
   glow.scale.set(CARD.W * 2.0, CARD.H * 1.7, 1);
   glow.position.z = -0.06;
+  glow.renderOrder = -1;
   outer.add(glow);
 
   // --- flip group ---
@@ -63,7 +67,6 @@ export function createCard(data) {
     flip,
     glow,
     holo,
-    // expose for the controller
     setGlow(v) { glowMat.opacity = v; },
     setHoloIntensity(v) { holo.setIntensity(v); },
     setHoloTilt(x, y) { holo.setTilt(x, y); },

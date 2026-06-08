@@ -1,12 +1,15 @@
-// Open screen — the money shot. The 3D pack + cards live in the scene behind
-// this overlay; this module renders the UI text/chrome and reacts to the
-// reveal events the RevealController emits.
+// Open screen — the 3D pack + reveal live behind this overlay.
 import { addCards } from '../../state/collection.js';
 import { rarityOf, TIER_ORDER } from '../../game/rarity.js';
 
 export const open = {
   enter(el, ctx) {
     this.router = ctx?.router;
+
+    // Tell the scene manager we've entered the open tab so it can reset the
+    // pack if no reveal is currently in progress.
+    window.dispatchEvent(new CustomEvent('game:enterOpen'));
+
     el.innerHTML = `
       <div class="open-counter ui" id="op-counter" hidden></div>
 
@@ -29,56 +32,54 @@ export const open = {
     this.flash.className = 'reveal-flash';
     document.body.appendChild(this.flash);
 
-    // --- event handlers ---
     this.h = {
-      grab: () => this._hint('Pull — all the way past the edge!'),
-      open: () => this._hint(''),
-      start: (e) => { this._hideHint(); this._setCounter(0, e.detail.total); },
-      card: (e) => { this._clearReveal(); this._setCounter(e.detail.index + 1, e.detail.total); },
-      gate: () => this._prompt('Tap to flip'),
-      flip: () => this._prompt(''),
-      revealed: (e) => this._showName(e.detail),
-      price: (e) => this._showPrice(e.detail.price),
-      holdPrompt: () => this._prompt('Tap to continue · swipe to dismiss'),
-      dismiss: () => this._clearReveal(),
-      flashFx: (e) => this._doFlash(e.detail.style),
-      summary: (e) => this._showSummary(e.detail),
+      grab:        () => this._hint('Pull — all the way past the edge!'),
+      open:        () => this._hint(''),
+      start:       (e) => { this._hideHint(); this._setCounter(0, e.detail.total); },
+      card:        (e) => { this._clearReveal(); this._setCounter(e.detail.index + 1, e.detail.total); },
+      gate:        () => this._prompt('Tap to flip'),
+      flip:        () => this._prompt(''),
+      revealed:    (e) => this._showName(e.detail),
+      price:       (e) => this._showPrice(e.detail.price),
+      holdPrompt:  () => this._prompt('Tap to continue · swipe to dismiss'),
+      dismiss:     () => this._clearReveal(),
+      flashFx:     (e) => this._doFlash(e.detail.style),
+      summary:     (e) => this._showSummary(e.detail),
     };
 
-    window.addEventListener('pack:grab', this.h.grab);
-    window.addEventListener('pack:open', this.h.open);
-    window.addEventListener('reveal:start', this.h.start);
-    window.addEventListener('reveal:card', this.h.card);
-    window.addEventListener('reveal:gate', this.h.gate);
-    window.addEventListener('reveal:flip', this.h.flip);
-    window.addEventListener('reveal:revealed', this.h.revealed);
-    window.addEventListener('reveal:price', this.h.price);
+    window.addEventListener('pack:grab',         this.h.grab);
+    window.addEventListener('pack:open',         this.h.open);
+    window.addEventListener('reveal:start',      this.h.start);
+    window.addEventListener('reveal:card',       this.h.card);
+    window.addEventListener('reveal:gate',       this.h.gate);
+    window.addEventListener('reveal:flip',       this.h.flip);
+    window.addEventListener('reveal:revealed',   this.h.revealed);
+    window.addEventListener('reveal:price',      this.h.price);
     window.addEventListener('reveal:holdPrompt', this.h.holdPrompt);
-    window.addEventListener('reveal:dismiss', this.h.dismiss);
-    window.addEventListener('reveal:flash', this.h.flashFx);
-    window.addEventListener('reveal:summary', this.h.summary);
+    window.addEventListener('reveal:dismiss',    this.h.dismiss);
+    window.addEventListener('reveal:flash',      this.h.flashFx);
+    window.addEventListener('reveal:summary',    this.h.summary);
   },
 
   exit() {
     if (this.h) {
-      window.removeEventListener('pack:grab', this.h.grab);
-      window.removeEventListener('pack:open', this.h.open);
-      window.removeEventListener('reveal:start', this.h.start);
-      window.removeEventListener('reveal:card', this.h.card);
-      window.removeEventListener('reveal:gate', this.h.gate);
-      window.removeEventListener('reveal:flip', this.h.flip);
-      window.removeEventListener('reveal:revealed', this.h.revealed);
-      window.removeEventListener('reveal:price', this.h.price);
+      window.removeEventListener('pack:grab',         this.h.grab);
+      window.removeEventListener('pack:open',         this.h.open);
+      window.removeEventListener('reveal:start',      this.h.start);
+      window.removeEventListener('reveal:card',       this.h.card);
+      window.removeEventListener('reveal:gate',       this.h.gate);
+      window.removeEventListener('reveal:flip',       this.h.flip);
+      window.removeEventListener('reveal:revealed',   this.h.revealed);
+      window.removeEventListener('reveal:price',      this.h.price);
       window.removeEventListener('reveal:holdPrompt', this.h.holdPrompt);
-      window.removeEventListener('reveal:dismiss', this.h.dismiss);
-      window.removeEventListener('reveal:flash', this.h.flashFx);
-      window.removeEventListener('reveal:summary', this.h.summary);
+      window.removeEventListener('reveal:dismiss',    this.h.dismiss);
+      window.removeEventListener('reveal:flash',      this.h.flashFx);
+      window.removeEventListener('reveal:summary',    this.h.summary);
     }
     this.flash?.remove();
     this.flash = null;
   },
 
-  // --- UI helpers ---
   _hint(text) {
     const h = this.$('#op-hint');
     if (!h) return;
@@ -100,8 +101,8 @@ export const open = {
   },
 
   _showName({ name, label, colorCss, isHit }) {
-    const wrap = this.$('#op-name');
-    const pill = this.$('#op-pill');
+    const wrap  = this.$('#op-name');
+    const pill  = this.$('#op-pill');
     const title = this.$('#op-title');
     wrap.hidden = false;
     pill.textContent = label;
@@ -120,7 +121,7 @@ export const open = {
   },
 
   _clearReveal() {
-    const n = this.$('#op-name'); if (n) n.hidden = true;
+    const n  = this.$('#op-name');  if (n)  n.hidden  = true;
     const pr = this.$('#op-price'); if (pr) pr.hidden = true;
     this._prompt('');
   },
@@ -139,14 +140,14 @@ export const open = {
       f.style.background = 'radial-gradient(circle at 50% 42%, rgba(255,255,255,0.95) 0%, rgba(8,8,14,0.9) 72%)';
       f.style.opacity = '1';
     }
-    void f.offsetWidth;                       // force reflow to restart transition
+    void f.offsetWidth;
     const dur = style === 'full-darken' ? 0.95 : 0.5;
     f.style.transition = `opacity ${dur}s ease-out`;
     f.style.opacity = '0';
   },
 
   _showSummary({ tally, cards, best }) {
-    try { addCards(cards); } catch {}      // persist the pull
+    try { addCards(cards); } catch {}
 
     const rows = TIER_ORDER
       .filter((t) => tally[t])
