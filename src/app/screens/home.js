@@ -28,8 +28,8 @@ export const home = {
     el.innerHTML = `
       <div class="home-wrap ui">
         <div class="home-header">
-          <div class="screen-title">Rips &amp; Hits</div>
-          <div class="screen-sub">Pick a pack and rip it open</div>
+          <div class="screen-title">Packs</div>
+          <div class="screen-sub">Choose a pack to open</div>
         </div>
         <div class="pack-shelf">${packCards}</div>
       </div>

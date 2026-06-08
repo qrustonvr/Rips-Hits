@@ -1,4 +1,7 @@
 /* ===== Rips & Hits — app shell ===== */
+
+/* Ensure [hidden] always wins even when an author rule sets display */
+[hidden] { display: none !important; }
 :root {
   --bg: #0a0a0f;
   --surface: #15151d;
