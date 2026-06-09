@@ -4,7 +4,16 @@ import { createTearStrip } from './tearStrip.js';
 
 export const PACK = { W: 1.6, H: 2.3, D: 0.18, STRIP_H: 0.26 };
 
-// Texture cache so repeated ripAnother() calls don't re-fetch.
+// ---------------------------------------------------------------------------
+// Texture zone fractions — how much of the pack art image is each region.
+// The art is laid out top-to-bottom: [top crimp | body art | bottom crimp].
+// Adjust these if the pack art has different proportions.
+// ---------------------------------------------------------------------------
+const TOP_FRAC  = 0.17;   // top crimp (heat-sealed fold) zone
+const BOT_FRAC  = 0.14;   // bottom crimp zone
+const BODY_FRAC = 1 - TOP_FRAC - BOT_FRAC;   // ≈ 0.69 main art
+
+// Raw texture cache (one load per URL).
 const _texCache = new Map();
 function loadTex(url) {
   if (!url) return null;
@@ -15,33 +24,71 @@ function loadTex(url) {
   return tex;
 }
 
+// Clone a texture and restrict its UV window to [offsetY, offsetY+repeatY].
+function croppedTex(orig, offsetY, repeatY) {
+  if (!orig) return null;
+  const t = orig.clone();
+  t.needsUpdate = true;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.repeat.set(1, repeatY);
+  t.offset.set(0, offsetY);
+  return t;
+}
+
 export function createPack(packTexturePath) {
   const { W, H, D, STRIP_H } = PACK;
   const group = new THREE.Group();
 
-  // Load pack art if a path is supplied. Falls back to tinted foil.
-  const artTex = packTexturePath ? loadTex(packTexturePath) : null;
+  const artTexOrig = packTexturePath ? loadTex(packTexturePath) : null;
 
+  // Three UV-cropped copies — one per zone.
+  //   BOT zone:  image rows 0%–14%  → offset 0,    repeat BOT_FRAC
+  //   BODY zone: image rows 14%–83% → offset BOT_FRAC, repeat BODY_FRAC
+  //   TOP zone:  image rows 83%–100%→ offset (1-TOP_FRAC), repeat TOP_FRAC
+  const bodyTex = croppedTex(artTexOrig, BOT_FRAC, BODY_FRAC);
+  const botTex  = croppedTex(artTexOrig, 0,         BOT_FRAC);
+  const topTex  = croppedTex(artTexOrig, 1 - TOP_FRAC, TOP_FRAC);
+
+  // Body — front & back get the cropped body art texture.
   const foilBase = new THREE.MeshPhysicalMaterial({
-    color:               artTex ? 0xffffff : 0xc8a832,
-    map:                 artTex ?? null,
-    metalness:           artTex ? 0.55 : 0.85,
-    roughness:           artTex ? 0.40 : 0.35,
-    clearcoat:           0.6,
-    clearcoatRoughness:  0.25,
+    color:              artTexOrig ? 0xffffff : 0xc8a832,
+    map:                bodyTex ?? null,
+    metalness:          artTexOrig ? 0.55 : 0.85,
+    roughness:          artTexOrig ? 0.40 : 0.35,
+    clearcoat:          0.6,
+    clearcoatRoughness: 0.25,
   });
 
-  // Spine / edge material — metallic foil accent strip
+  // Spine / edge material — metallic foil accent.
   const foilEdge = new THREE.MeshPhysicalMaterial({
-    color:               0xd4a010,
-    metalness:           0.92,
-    roughness:           0.20,
-    clearcoat:           0.8,
-    clearcoatRoughness:  0.15,
+    color:              0xd4a010,
+    metalness:          0.92,
+    roughness:          0.20,
+    clearcoat:          0.8,
+    clearcoatRoughness: 0.15,
   });
 
-  // Body uses an array of materials: [right, left, top-side, bot-side, front, back]
-  // front (index 4) and back (index 5) get the art; sides get the foil edge.
+  // Bottom crimp material — uses the bottom zone of the art texture.
+  const crimpBotMat = new THREE.MeshPhysicalMaterial({
+    color:              artTexOrig ? 0xffffff : 0xb8940e,
+    map:                botTex ?? null,
+    metalness:          artTexOrig ? 0.80 : 0.90,
+    roughness:          artTexOrig ? 0.35 : 0.55,
+    clearcoat:          0.5,
+    clearcoatRoughness: 0.3,
+  });
+
+  // Top crimp / tear strip material — uses the top zone of the art texture.
+  const topCrimpMat = new THREE.MeshPhysicalMaterial({
+    color:              artTexOrig ? 0xffffff : 0xd4a010,
+    map:                topTex ?? null,
+    metalness:          artTexOrig ? 0.80 : 0.92,
+    roughness:          artTexOrig ? 0.30 : 0.20,
+    clearcoat:          0.7,
+    clearcoatRoughness: 0.2,
+  });
+
+  // body: [right, left, top-side, bot-side, front, back]
   const bodyMats = [foilEdge, foilEdge, foilEdge, foilEdge, foilBase, foilBase];
 
   const bodyH = H - STRIP_H;
@@ -51,7 +98,7 @@ export function createPack(packTexturePath) {
   body.position.y = -STRIP_H / 2;
   group.add(body);
 
-  // Dark interior revealed as the strip peels away
+  // Dark interior revealed when strip peels.
   const interior = new THREE.Mesh(
     new THREE.BoxGeometry(W * 0.96, 0.06, 0.04),
     new THREE.MeshStandardMaterial({ color: 0x0b0b10, roughness: 1, metalness: 0 })
@@ -59,16 +106,16 @@ export function createPack(packTexturePath) {
   interior.position.y = H / 2 - STRIP_H + 0.01;
   group.add(interior);
 
-  // Bottom crimp
+  // Bottom crimp — uses the bottom zone of the art texture.
   const crimpBot = new THREE.Mesh(
     new THREE.BoxGeometry(W, 0.22, 0.04),
-    new THREE.MeshStandardMaterial({ color: 0xb8940e, metalness: 0.9, roughness: 0.55 })
+    crimpBotMat
   );
-  crimpBot.position.y = -(H / 2 + 0.1);
+  crimpBot.position.y = -(H / 2 + 0.1) + 0.05;
   group.add(crimpBot);
 
-  // Tear strip (includes top crimp + grab tab)
-  const strip = createTearStrip(PACK, foilEdge);
+  // Tear strip (top crimp + grab tab) — uses the top zone art texture.
+  const strip = createTearStrip(PACK, topCrimpMat);
   group.add(strip.group);
 
   const state = {
