@@ -9,7 +9,7 @@ export function createTearStrip(PACK, foilMaterial) {
   const group = new THREE.Group();
 
   const yBot = H / 2 - STRIP_H;        // perforation line
-  const stripH = STRIP_H + 0.22;       // strip + crimped area above pack top
+  const stripH = STRIP_H + 0.06;       // strip + crimped area above pack top
   const yCenter = yBot + stripH / 2;
   const depth = 0.06;
   const yTab = H / 2 - 0.1;

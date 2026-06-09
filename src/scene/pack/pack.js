@@ -2,14 +2,14 @@
 import * as THREE from 'three';
 import { createTearStrip } from './tearStrip.js';
 
-export const PACK = { W: 1.6, H: 2.3, D: 0.18, STRIP_H: 0.26 };
+export const PACK = { W: 1.6, H: 2.3, D: 0.18, STRIP_H: 0.16 };
 
 // ---------------------------------------------------------------------------
 // Texture zone fractions — how much of the pack art image is each region.
 // The art is laid out top-to-bottom: [top crimp | body art | bottom crimp].
 // Adjust these if the pack art has different proportions.
 // ---------------------------------------------------------------------------
-const TOP_FRAC  = 0.17;   // top crimp (heat-sealed fold) zone
+const TOP_FRAC  = 0.09;   // top crimp (heat-sealed fold) zone
 const BOT_FRAC  = 0.14;   // bottom crimp zone
 const BODY_FRAC = 1 - TOP_FRAC - BOT_FRAC;   // ≈ 0.69 main art
 
