@@ -39,9 +39,13 @@ Ask the user (AskUserQuestion or direct) and confirm a short summary first.
 
 Required:
 1. **Theme / pack name** — e.g. "Charizard Line". Becomes the pack id (slug).
-2. **Allowed Pokémon** — exact names that may appear (e.g. Charizard,
-   Charmeleon, Charmander). If they give only a theme, propose the evolution
-   line and confirm.
+2. **Allowed Pokémon** — names that may appear (e.g. Charizard, Charmeleon,
+   Charmander). Matching is INCLUSIVE by default: any card whose name contains
+   an allowed name as a whole word is eligible — so "Charizard ex",
+   "Charizard VMAX", "M Charizard EX", and multi-Pokémon cards like
+   "Charizard & Reshiram-GX" all qualify. It will NOT bleed across species
+   (a "Mew" pack won't pull "Mewtwo"). Pass `--exact-name` for standalone names
+   only. If they give only a theme, propose the evolution line and confirm.
 3. **Pack price** (USD) — what the buyer pays.
 4. **Max card value** (USD) — most valuable card allowed; pricier cards excluded.
 
@@ -67,7 +71,16 @@ python3 .claude/skills/pack-creator/scripts/pack_creator.py \
 ```
 
 What it does:
-- Searches TCGdex for each allowed Pokémon (`/v2/en/cards?name=…`).
+- Searches TCGdex for each allowed Pokémon (`/v2/en/cards?name=…`, whose
+  default "laxist" matching already returns ex/VMAX/Mega/multi-Pokémon cards),
+  then keeps cards whose name contains an allowed name as a whole word
+  (or exactly, with `--exact-name`).
+- **Verifies species authoritatively**: every kept card must be category
+  "Pokemon" and its National Pokédex id (`dexId`) must match the target
+  Pokémon (the target dex ids are derived as the mode dexId of each allowed
+  name). This catches mislabeled or look-alike cards — e.g. a Combusken that
+  slipped through a name match is rejected because its dexId is 256, not 4/5/6.
+  Trainer/Energy cards that share a name are dropped. Rejections are printed.
 - Fetches each card's full object and reads USD price
   (`pricing.tcgplayer.<variant>.marketPrice`, highest variant; falls back to
   Cardmarket EUR→USD). Cards with no price are dropped.
@@ -150,6 +163,9 @@ via `src/data/tcgdex.js`.
 - Exclude cards with no pricing; flag impossible margins.
 - Prices are point-in-time — the pack stamps `generatedAt`. Regenerate to refresh.
 - Don't invent cards, ids, or prices. Everything comes from real TCGdex data.
+- **Species is verified by `dexId`, not just name.** A card is only included if
+  it's a Pokémon card whose National Pokédex id matches the target. Review the
+  printed "species check rejected" list to see anything that was filtered out.
 - Registration is idempotent: re-running updates the JSON and won't duplicate
   the cards.js entry.
 
@@ -157,6 +173,8 @@ via `src/data/tcgdex.js`.
 - Search: `GET https://api.tcgdex.net/v2/en/cards?name=<Pokemon>` → CardBrief[] (no price)
 - Card+price: `GET https://api.tcgdex.net/v2/en/cards/{id}` (or `/sets/{setId}/{localId}`)
 - USD: `pricing.tcgplayer.<holofoil|normal|reverse-holofoil|...>.marketPrice`
+- Species check: card.`category`=="Pokemon" AND card.`dexId` ∩ target dex ids
 - Image: brief `image` + `/high.webp`
-- Script: `scripts/pack_creator.py` (`--install`, `--mock`, `--app-dir`)
+- Script: `scripts/pack_creator.py` (`--install`, `--mock`, `--app-dir`, `--exact-name`)
+- Name matching: inclusive whole-word by default (ex/VMAX/multi included); `--exact-name` for standalone only
 - Docs: https://tcgdex.dev/markets-prices , https://tcgdex.dev/rest/cards

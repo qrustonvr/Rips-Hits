@@ -9,18 +9,25 @@
   "meta": {
     "maxCardValue": 500.0,
     "minCardValue": 0.01,
-    "poolSize": 15,
+    "poolSize": 19,
     "expectedValuePerPack": 3.5,
     "expectedValuePerDraw": 0.7,
     "marginPct": 30.0,
     "evTargetMet": true,
-    "chanceHitOverPrice_perPack": 0.101399,
+    "chanceHitOverPrice_perPack": 0.098861,
     "weighting": {
       "method": "inverse_value_ev_balanced",
-      "k": 1.2314
+      "k": 1.3129
     },
     "pricingSource": "tcgplayer.marketPrice (fallback cardmarket.trend)",
-    "generatedAt": "2026-06-09T20:35:12.414654+00:00"
+    "speciesVerified": true,
+    "targetDexIds": [
+      4,
+      5,
+      6
+    ],
+    "rejectedCount": 2,
+    "generatedAt": "2026-06-09T21:04:30.685271+00:00"
   },
   "pool": {
     "COMMON": [
@@ -28,25 +35,25 @@
         "id": "xy12-9",
         "name": "Charmander",
         "value": 0.5,
-        "weight": 149536.62
+        "weight": 145772.31
       },
       {
         "id": "swsh3-23",
         "name": "Charmander",
         "value": 0.4,
-        "weight": 196825.44
+        "weight": 195393.35
       },
       {
         "id": "swsh3-24",
         "name": "Charmeleon",
         "value": 0.35,
-        "weight": 232001.99
+        "weight": 232835.05
       },
       {
         "id": "det1-4",
         "name": "Charmander",
         "value": 0.25,
-        "weight": 351100.77
+        "weight": 362161.45
       }
     ],
     "UNCOMMON": [
@@ -54,13 +61,13 @@
         "id": "det1-5",
         "name": "Charizard",
         "value": 4.25,
-        "weight": 10721.95
+        "weight": 8778.61
       },
       {
         "id": "xy12-10",
         "name": "Charmeleon",
         "value": 1.5,
-        "weight": 38656.89
+        "weight": 34455.2
       }
     ],
     "RARE": [
@@ -68,37 +75,49 @@
         "id": "xy12-11",
         "name": "Charizard",
         "value": 22.5,
-        "weight": 1377.22
+        "weight": 984.34
+      },
+      {
+        "id": "sv03.5-6",
+        "name": "Charizard ex",
+        "value": 18.0,
+        "weight": 1319.41
       },
       {
         "id": "g1-11",
         "name": "Charizard",
         "value": 16.0,
-        "weight": 2095.69
+        "weight": 1540.07
+      },
+      {
+        "id": "col1-13",
+        "name": "Charizard & Reshiram-GX",
+        "value": 14.0,
+        "weight": 1835.18
       },
       {
         "id": "base1-24",
         "name": "Charmeleon",
         "value": 12.0,
-        "weight": 2986.58
+        "weight": 2246.85
       },
       {
         "id": "swsh3-25",
         "name": "Charizard",
         "value": 11.0,
-        "weight": 3324.35
+        "weight": 2518.76
       },
       {
         "id": "cel25-4",
         "name": "Charizard",
         "value": 9.5,
-        "weight": 3982.06
+        "weight": 3053.36
       },
       {
         "id": "base1-46",
         "name": "Charmander",
         "value": 6.0,
-        "weight": 7012.27
+        "weight": 5582.14
       }
     ],
     "ULTRA_RARE": [
@@ -106,7 +125,19 @@
         "id": "base4-4",
         "name": "Charizard",
         "value": 95.0,
-        "weight": 233.73
+        "weight": 148.55
+      },
+      {
+        "id": "swsh3-20",
+        "name": "Charizard VMAX",
+        "value": 35.0,
+        "weight": 551.08
+      },
+      {
+        "id": "xy12-12",
+        "name": "M Charizard EX",
+        "value": 28.0,
+        "weight": 738.67
       }
     ],
     "SECRET_RARE": [
@@ -114,13 +145,13 @@
         "id": "base1-4",
         "name": "Charizard",
         "value": 415.0,
-        "weight": 38.04
+        "weight": 21.44
       },
       {
         "id": "base2-4",
         "name": "Charizard",
         "value": 180.0,
-        "weight": 106.4
+        "weight": 64.19
       }
     ]
   }

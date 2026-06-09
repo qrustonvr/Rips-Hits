@@ -34,6 +34,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from collections import Counter
 from datetime import datetime, timezone
 
 API = "https://api.tcgdex.net/v2/en"
@@ -73,11 +74,19 @@ def get_card(card_id):
         urls.append(f"{API}/sets/{card_id[:dash]}/{card_id[dash+1:]}")
     urls.append(f"{API}/cards/{urllib.parse.quote(card_id)}")
     last = None
+    fallback = None
     for u in urls:
         try:
-            return _get(u)
+            data = _get(u)
         except Exception as e:  # noqa: BLE001
             last = e
+            continue
+        # Guard against the endpoint returning a different card than requested.
+        if data.get("id") == card_id:
+            return data
+        fallback = fallback or data
+    if fallback is not None:
+        return fallback
     raise last
 
 
@@ -156,15 +165,50 @@ def camel(slug):
     return head + "".join(p.capitalize() for p in parts[1:])
 
 
-def name_matches(card_name, allowed):
-    n = card_name.lower()
-    return any(p.lower() in n for p in allowed)
+def expected_dex_ids(full_cards, allowed):
+    """Determine the canonical National Pokedex id for each allowed name by
+    taking the MODE dexId among real Pokémon cards whose name equals that name
+    exactly. Using the mode makes this robust to a few mislabeled entries."""
+    wanted = {a.lower().strip(): Counter() for a in allowed}
+    for _brief, card in full_cards:
+        if (card.get("category") or "Pokemon") != "Pokemon":
+            continue
+        nm = (card.get("name") or "").lower().strip()
+        if nm in wanted:
+            for d in (card.get("dexId") or []):
+                wanted[nm][d] += 1
+    out = set()
+    for nm, ctr in wanted.items():
+        if ctr:
+            out.add(ctr.most_common(1)[0][0])
+    return out
+
+
+def name_matches(card_name, allowed, exact=False):
+    """Match a card to the allowed Pokemon names.
+
+    Default (inclusive): the Pokemon name must appear as a WHOLE WORD, so it
+    includes "Charizard ex", "Charizard VMAX", "M Charizard EX" and multi-Pokemon
+    cards like "Charizard & Reshiram-GX", while NOT bleeding across species
+    (a "Mew" pack won't pull "Mewtwo"). exact=True requires the card name to
+    equal an allowed name exactly (no ex/VMAX/multi variants)."""
+    n = card_name.lower().strip()
+    for raw in allowed:
+        pl = raw.lower().strip()
+        if exact:
+            if n == pl:
+                return True
+        else:
+            # whole-word: boundaries are anything that isn't a letter/digit
+            if re.search(r"(?<![a-z0-9])" + re.escape(pl) + r"(?![a-z0-9])", n):
+                return True
+    return False
 
 
 def build_pack(name, price, max_value, allowed, game="pokemon",
                cards_per_pack=5, pool_size=25, min_value=0.01, margin=0.30,
                pack_texture="/packs/RipsNHits_Default.png", release_date=None,
-               sample=None, sleep=0.15):
+               exact_name=False, sample=None, sleep=0.15):
     # 1. gather candidate full-card objects
     if sample is not None:
         full_cards = sample
@@ -182,10 +226,25 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
                 print(f"  skip {cid}: {e}", file=sys.stderr)
             time.sleep(sleep)
 
-    # 2. price + filter
-    priced = []
+    # 2. price + species-verify + filter
+    target_dex = expected_dex_ids(full_cards, allowed)
+    priced, rejected = [], []
     for brief, card in full_cards:
-        if not name_matches(card.get("name", ""), allowed):
+        cname = card.get("name", "")
+        if not name_matches(cname, allowed, exact=exact_name):
+            continue
+        # Only real Pokémon cards (drop Trainer/Energy that share a name).
+        category = card.get("category") or "Pokemon"
+        if category != "Pokemon":
+            rejected.append((cname, card.get("id"), f"not a Pokémon card ({category})"))
+            continue
+        # AUTHORITATIVE species check: the card's National Pokédex id(s) must
+        # match the target Pokémon. Catches e.g. a Combusken mislabeled as
+        # Charmander. Falls back to the name match only when dex data is absent.
+        dex = card.get("dexId") or []
+        if target_dex and dex and not (set(dex) & target_dex):
+            rejected.append((cname, card.get("id"),
+                             f"dexId {dex} != target {sorted(target_dex)}"))
             continue
         val, src = extract_usd_value(card)
         if val is None or val < min_value or val > max_value:
@@ -196,6 +255,10 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
             "value": round(val, 2),
             "_src": src,
         })
+    if rejected:
+        print(f"  species check rejected {len(rejected)} card(s):", file=sys.stderr)
+        for nm, cid, why in rejected:
+            print(f"    - {nm} ({cid}): {why}", file=sys.stderr)
     if len(priced) < 2:
         raise SystemExit("Not enough priced cards in range. Widen the Pokemon "
                          "list, raise --max-value, or lower --min-value.")
@@ -252,6 +315,9 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
             "chanceHitOverPrice_perPack": round(win_pack, 6),
             "weighting": {"method": "inverse_value_ev_balanced", "k": round(k, 4)},
             "pricingSource": "tcgplayer.marketPrice (fallback cardmarket.trend)",
+            "speciesVerified": True,
+            "targetDexIds": sorted(target_dex),
+            "rejectedCount": len(rejected),
             "generatedAt": datetime.now(timezone.utc).isoformat(),
         },
         "pool": pool,
@@ -352,6 +418,8 @@ def main():
     ap.add_argument("--margin", type=float, default=0.30)
     ap.add_argument("--pack-texture", default="/packs/RipsNHits_Default.png")
     ap.add_argument("--release-date", default=None)
+    ap.add_argument("--exact-name", action="store_true",
+                    help="only standalone names (exclude ex/VMAX/multi-Pokemon cards)")
     ap.add_argument("--app-dir", default=".",
                     help="repo root containing src/data/packs and cards.js")
     ap.add_argument("--install", action="store_true",
@@ -365,6 +433,7 @@ def main():
         cards_per_pack=args.cards_per_pack, pool_size=args.pool_size,
         min_value=args.min_value, margin=args.margin,
         pack_texture=args.pack_texture, release_date=args.release_date,
+        exact_name=args.exact_name,
         sample=(MOCK_CARDS if args.mock else None))
 
     md = render_markdown(pack)
@@ -382,28 +451,39 @@ def main():
         print(f"\n[ok] wrote {pack['id']}.json (not installed -- pass --install)")
 
 
-def _c(cid, nm, tcg):
+def _c(cid, nm, tcg, dex=None, category="Pokemon"):
     img = f"https://assets.tcgdex.net/en/{cid.split('-')[0]}/{cid}"
-    return ({"id": cid, "name": nm, "image": img},
-            {"id": cid, "name": nm, "image": img,
-             "pricing": {"tcgplayer": tcg}})
+    full = {"id": cid, "name": nm, "image": img, "category": category,
+            "pricing": {"tcgplayer": tcg}}
+    if dex is not None:
+        full["dexId"] = dex
+    return ({"id": cid, "name": nm, "image": img}, full)
 
 MOCK_CARDS = [
-    _c("base1-4",   "Charizard",  {"holofoil": {"marketPrice": 415.0}}),
-    _c("base2-4",   "Charizard",  {"holofoil": {"marketPrice": 180.0}}),
-    _c("base4-4",   "Charizard",  {"holofoil": {"marketPrice": 95.0}}),
-    _c("xy12-11",   "Charizard",  {"holofoil": {"marketPrice": 22.5}, "normal": {"marketPrice": 8.0}}),
-    _c("g1-11",     "Charizard",  {"holofoil": {"marketPrice": 16.0}}),
-    _c("swsh3-25",  "Charizard",  {"holofoil": {"marketPrice": 11.0}}),
-    _c("cel25-4",   "Charizard",  {"holofoil": {"marketPrice": 9.5}}),
-    _c("det1-5",    "Charizard",  {"normal": {"marketPrice": 4.25}}),
-    _c("base1-24",  "Charmeleon", {"holofoil": {"marketPrice": 12.0}}),
-    _c("xy12-10",   "Charmeleon", {"normal": {"marketPrice": 0.75}, "reverse-holofoil": {"marketPrice": 1.5}}),
-    _c("swsh3-24",  "Charmeleon", {"normal": {"marketPrice": 0.35}}),
-    _c("base1-46",  "Charmander", {"normal": {"marketPrice": 3.5}, "reverse-holofoil": {"marketPrice": 6.0}}),
-    _c("xy12-9",    "Charmander", {"normal": {"marketPrice": 0.5}}),
-    _c("swsh3-23",  "Charmander", {"normal": {"marketPrice": 0.15}, "reverse-holofoil": {"marketPrice": 0.4}}),
-    _c("det1-4",    "Charmander", {"normal": {"marketPrice": 0.25}}),
+    # dexId: Charizard=6, Charmeleon=5, Charmander=4
+    _c("base1-4",   "Charizard",  {"holofoil": {"marketPrice": 415.0}}, [6]),
+    _c("base2-4",   "Charizard",  {"holofoil": {"marketPrice": 180.0}}, [6]),
+    _c("base4-4",   "Charizard",  {"holofoil": {"marketPrice": 95.0}}, [6]),
+    _c("xy12-11",   "Charizard",  {"holofoil": {"marketPrice": 22.5}, "normal": {"marketPrice": 8.0}}, [6]),
+    _c("g1-11",     "Charizard",  {"holofoil": {"marketPrice": 16.0}}, [6]),
+    _c("swsh3-25",  "Charizard",  {"holofoil": {"marketPrice": 11.0}}, [6]),
+    _c("cel25-4",   "Charizard",  {"holofoil": {"marketPrice": 9.5}}, [6]),
+    _c("det1-5",    "Charizard",  {"normal": {"marketPrice": 4.25}}, [6]),
+    _c("base1-24",  "Charmeleon", {"holofoil": {"marketPrice": 12.0}}, [5]),
+    _c("xy12-10",   "Charmeleon", {"normal": {"marketPrice": 0.75}, "reverse-holofoil": {"marketPrice": 1.5}}, [5]),
+    _c("swsh3-24",  "Charmeleon", {"normal": {"marketPrice": 0.35}}, [5]),
+    _c("base1-46",  "Charmander", {"normal": {"marketPrice": 3.5}, "reverse-holofoil": {"marketPrice": 6.0}}, [4]),
+    _c("xy12-9",    "Charmander", {"normal": {"marketPrice": 0.5}}, [4]),
+    _c("swsh3-23",  "Charmander", {"normal": {"marketPrice": 0.15}, "reverse-holofoil": {"marketPrice": 0.4}}, [4]),
+    _c("det1-4",    "Charmander", {"normal": {"marketPrice": 0.25}}, [4]),
+    # ex / VMAX / Mega / multi-Pokemon variants — included via whole-word match
+    _c("sv03.5-6",   "Charizard ex",            {"holofoil": {"marketPrice": 18.0}}, [6]),
+    _c("swsh3-20",   "Charizard VMAX",          {"holofoil": {"marketPrice": 35.0}}, [6]),
+    _c("xy12-12",    "M Charizard EX",          {"holofoil": {"marketPrice": 28.0}}, [6]),
+    _c("col1-13",    "Charizard & Reshiram-GX", {"holofoil": {"marketPrice": 14.0}}, [6, 643]),
+    # DECOYS that must be rejected by the species check:
+    _c("bad-1", "Charmander", {"normal": {"marketPrice": 2.0}}, [256]),          # really Combusken (dex 256)
+    _c("bad-2", "Charizard",  {"holofoil": {"marketPrice": 3.0}}, None, "Trainer"),  # a Trainer card
 ]
 
 if __name__ == "__main__":
