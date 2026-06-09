@@ -10,6 +10,13 @@ import { CardSource } from '../game/cardSource.js';
 
 const QTY_KEY = 'ripsandhits.pendingQty';
 
+// Resolve a public-folder asset path to work on both dev (/) and GitHub Pages (/Rips-Hits/).
+function asset(path) {
+  if (!path) return null;
+  const base = import.meta.env.BASE_URL ?? '/';
+  return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
+}
+
 export class SceneManager {
   constructor(canvas) {
     this.canvas = canvas;
@@ -81,7 +88,9 @@ export class SceneManager {
 
   buildPack() {
     if (this.pack) this.scene.remove(this.pack.group);
-    const packTexture = CardSource.getSet(this.game)?.packTexture ?? null;
+    // Resolve path with BASE_URL so the texture loads on GitHub Pages.
+    const rawPath    = CardSource.getSet(this.game)?.packTexture ?? null;
+    const packTexture = rawPath ? asset(rawPath) : null;
     this.pack = createPack(packTexture);
     this.scene.add(this.pack.group);
 

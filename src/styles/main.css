@@ -573,3 +573,9 @@ html, body {
 }
 .cm-sell-btn { margin-bottom: 10px; }
 .cm-close-btn {}
+
+/* Popups and modals must opt into pointer events (parent #screen is none) */
+.pack-popup-overlay,
+.pack-popup,
+.coll-modal-overlay,
+.coll-modal { pointer-events: auto; }
