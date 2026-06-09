@@ -143,10 +143,12 @@ export class PackRotateGesture {
     this.pack = pack;
     this.tear = tearGesture;
     this.dragging = false;
+    this.enabled = false;  // disabled by default; set true to allow drag-rotation
     this.last = { x: 0, y: 0 };
     this.vel = { x: 0, y: 0 };
 
     canvas.addEventListener('pointerdown', (e) => {
+      if (!this.enabled) return;
       if (this.tear?.tearing || this.pack.open || this.pack.revealing) return; // tab grab / reveal wins
       this.dragging = true;
       this.last = { x: e.clientX, y: e.clientY };
@@ -155,7 +157,7 @@ export class PackRotateGesture {
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (!this.dragging || this.tear?.tearing || this.pack.open) return;
+      if (!this.enabled || !this.dragging || this.tear?.tearing || this.pack.open) return;
       const dx = e.clientX - this.last.x;
       const dy = e.clientY - this.last.y;
       this.last = { x: e.clientX, y: e.clientY };
@@ -172,7 +174,7 @@ export class PackRotateGesture {
   }
 
   update(dt) {
-    if (this.dragging || this.tear?.tearing) return;
+    if (!this.enabled || this.dragging || this.tear?.tearing) return;
     // Inertia: keep spinning a touch after release, then settle.
     const decay = Math.exp(-dt * 4);
     this.vel.x *= decay;
