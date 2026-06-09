@@ -20,6 +20,7 @@ export const open = {
           <div class="rv-price" id="op-price" hidden></div>
         </div>
         <div class="reveal-prompt" id="op-prompt" hidden></div>
+        <button class="btn-ghost ui" id="op-flip-all" hidden>Flip All</button>
       </div>
 
       <div class="hint-chip ui" id="op-hint">Grab the green tab · pull across</div>
@@ -33,48 +34,46 @@ export const open = {
     document.body.appendChild(this.flash);
 
     this.h = {
-      grab:        () => this._hint('Pull — all the way past the edge!'),
-      open:        () => this._hint(''),
-      start:       (e) => { this._hideHint(); this._setCounter(0, e.detail.total); },
-      card:        (e) => { this._clearReveal(); this._setCounter(e.detail.index + 1, e.detail.total); },
-      gate:        () => this._prompt('Tap to flip'),
-      flip:        () => this._prompt(''),
-      revealed:    (e) => this._showName(e.detail),
-      price:       (e) => this._showPrice(e.detail.price),
-      holdPrompt:  () => this._prompt('Tap to continue · swipe to dismiss'),
-      dismiss:     () => this._clearReveal(),
-      flashFx:     (e) => this._doFlash(e.detail.style),
-      summary:     (e) => this._showSummary(e.detail),
+      grab:     () => this._hint('Pull — all the way past the edge!'),
+      open:     () => this._hint(''),
+      start:    (e) => { this._hideHint(); this._setCounter(0, e.detail.total); },
+      rowReady: (e) => { this._prompt('Tap cards to reveal'); this._showFlipAll(e.detail.total); },
+      // card fires on each reveal: index = # revealed so far.
+      card:     (e) => {
+        this._setCounter(e.detail.index, e.detail.total);
+        if (e.detail.index >= e.detail.total) {
+          this._prompt('');
+          const fa = this.$('#op-flip-all'); if (fa) fa.hidden = true;
+        }
+      },
+      revealed:  (e) => this._showName(e.detail),
+      price:     (e) => this._showPrice(e.detail.price),
+      flashFx:   (e) => this._doFlash(e.detail.style),
+      summary:   (e) => this._showSummary(e.detail),
     };
 
-    window.addEventListener('pack:grab',         this.h.grab);
-    window.addEventListener('pack:open',         this.h.open);
-    window.addEventListener('reveal:start',      this.h.start);
-    window.addEventListener('reveal:card',       this.h.card);
-    window.addEventListener('reveal:gate',       this.h.gate);
-    window.addEventListener('reveal:flip',       this.h.flip);
-    window.addEventListener('reveal:revealed',   this.h.revealed);
-    window.addEventListener('reveal:price',      this.h.price);
-    window.addEventListener('reveal:holdPrompt', this.h.holdPrompt);
-    window.addEventListener('reveal:dismiss',    this.h.dismiss);
-    window.addEventListener('reveal:flash',      this.h.flashFx);
-    window.addEventListener('reveal:summary',    this.h.summary);
+    window.addEventListener('pack:grab',       this.h.grab);
+    window.addEventListener('pack:open',       this.h.open);
+    window.addEventListener('reveal:start',    this.h.start);
+    window.addEventListener('reveal:rowReady', this.h.rowReady);
+    window.addEventListener('reveal:card',     this.h.card);
+    window.addEventListener('reveal:revealed', this.h.revealed);
+    window.addEventListener('reveal:price',    this.h.price);
+    window.addEventListener('reveal:flash',    this.h.flashFx);
+    window.addEventListener('reveal:summary',  this.h.summary);
   },
 
   exit() {
     if (this.h) {
-      window.removeEventListener('pack:grab',         this.h.grab);
-      window.removeEventListener('pack:open',         this.h.open);
-      window.removeEventListener('reveal:start',      this.h.start);
-      window.removeEventListener('reveal:card',       this.h.card);
-      window.removeEventListener('reveal:gate',       this.h.gate);
-      window.removeEventListener('reveal:flip',       this.h.flip);
-      window.removeEventListener('reveal:revealed',   this.h.revealed);
-      window.removeEventListener('reveal:price',      this.h.price);
-      window.removeEventListener('reveal:holdPrompt', this.h.holdPrompt);
-      window.removeEventListener('reveal:dismiss',    this.h.dismiss);
-      window.removeEventListener('reveal:flash',      this.h.flashFx);
-      window.removeEventListener('reveal:summary',    this.h.summary);
+      window.removeEventListener('pack:grab',       this.h.grab);
+      window.removeEventListener('pack:open',       this.h.open);
+      window.removeEventListener('reveal:start',    this.h.start);
+      window.removeEventListener('reveal:rowReady', this.h.rowReady);
+      window.removeEventListener('reveal:card',     this.h.card);
+      window.removeEventListener('reveal:revealed', this.h.revealed);
+      window.removeEventListener('reveal:price',    this.h.price);
+      window.removeEventListener('reveal:flash',    this.h.flashFx);
+      window.removeEventListener('reveal:summary',  this.h.summary);
     }
     this.flash?.remove();
     this.flash = null;
@@ -124,6 +123,17 @@ export const open = {
     const n  = this.$('#op-name');  if (n)  n.hidden  = true;
     const pr = this.$('#op-price'); if (pr) pr.hidden = true;
     this._prompt('');
+  },
+
+  _showFlipAll(total) {
+    const btn = this.$('#op-flip-all');
+    if (!btn || total <= 1) return;
+    btn.hidden = false;
+    btn.onclick = () => {
+      btn.hidden = true;
+      this._prompt('');
+      window.dispatchEvent(new CustomEvent('reveal:revealAll'));
+    };
   },
 
   _doFlash(style) {
@@ -180,7 +190,8 @@ export const open = {
     s.querySelector('#op-again').addEventListener('click', () => {
       s.hidden = true;
       this._clearReveal();
-      const c = this.$('#op-counter'); if (c) c.hidden = true;
+      const c  = this.$('#op-counter');  if (c)  c.hidden  = true;
+      const fa = this.$('#op-flip-all'); if (fa) fa.hidden = true;
       this._hint('Grab the green tab · pull across');
       window.dispatchEvent(new CustomEvent('game:ripAnother'));
     });

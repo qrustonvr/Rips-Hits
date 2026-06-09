@@ -2,7 +2,7 @@
 //
 // Reads pack definitions from src/data/packs/*.json (via cards.js).
 // Each pack has a `pool` object keyed by normalized TIER strings, with arrays
-// of { id, name } card stubs.
+// of card stubs { id, name } — value-based packs also carry { value, weight }.
 //
 // At pick time we return a card object with art: null — the reveal controller
 // calls tcgdex.js after the flip to load the live image + price.
@@ -81,7 +81,8 @@ function estPrice(tier) {
 
 // ---------------------------------------------------------------------------
 // Build a rarity-indexed pool from a pack definition's `pool` buckets.
-// Each entry in a bucket is { id, name }; we enrich with tier + defaults.
+// Each entry in a bucket is { id, name } and optionally { value, weight };
+// we enrich with tier + defaults.
 // ---------------------------------------------------------------------------
 function buildPool(pack) {
   const pool = {
@@ -104,7 +105,10 @@ function buildPool(pack) {
         tier,
         art:         null,          // loaded at runtime via tcgdex.js
         holoPattern: DEFAULT_HOLO[tier],
-        basePrice:   estPrice(tier),
+        // Value-based packs (pack-creator skill) carry a per-card `weight` and
+        // `value`; honor them. Otherwise fall back to a tier-based estimate.
+        weight:      (typeof c.weight === 'number' && c.weight > 0) ? c.weight : undefined,
+        basePrice:   (typeof c.value === 'number') ? c.value : estPrice(tier),
       });
     }
   }

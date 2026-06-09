@@ -7,7 +7,9 @@
 // To add a new pack: drop a JSON file into src/data/packs/ and import it here.
 
 import pokemon151 from './packs/pokemon-151.json';
+import charizardLine from './packs/charizard-line.json';
 
 export const PACKS = [
   pokemon151,
+  charizardLine,
 ];

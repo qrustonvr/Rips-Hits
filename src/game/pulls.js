@@ -1,11 +1,14 @@
 // Pull engine — pure per-card weighted draws (no fixed rarity slots).
-// Each card's weight is determined by its tier; rarer cards have lower weight.
-// This removes guaranteed rarity slots so every pull is a true random draw.
+// A card's pull weight is its own `weight` field when present (value-based packs
+// authored by the pack-creator skill set this from current market value), and
+// otherwise falls back to its tier weight. Either way every pull is a true
+// random draw with no guaranteed rarity slots.
 
 import { CardSource } from './cardSource.js';
 import { TIER, tierRank } from './rarity.js';
 
-// Weight per tier — lower = harder to pull.
+// Weight per tier — lower = harder to pull. Used as a fallback when a card has
+// no explicit value-based weight.
 export const TIER_WEIGHT = {
   [TIER.COMMON]:      100,
   [TIER.UNCOMMON]:    28,
@@ -20,8 +23,14 @@ function buildCandidates(packId) {
   if (!pool) return [];
   const candidates = [];
   for (const [tier, cards] of Object.entries(pool)) {
-    const w = TIER_WEIGHT[tier] ?? 1;
-    for (const card of cards) candidates.push({ card: { ...card }, weight: w });
+    const tierW = TIER_WEIGHT[tier] ?? 1;
+    for (const card of cards) {
+      // Prefer the card's own value-based weight; fall back to its tier weight.
+      const w = (typeof card.weight === 'number' && card.weight > 0)
+        ? card.weight
+        : tierW;
+      candidates.push({ card: { ...card }, weight: w });
+    }
   }
   return candidates;
 }
@@ -79,17 +88,17 @@ export function tallyByTier(cards) {
 // Returns array sorted by pullRate ascending (rarest first for display).
 // ---------------------------------------------------------------------------
 export function getPullRates(packId) {
-  const set        = CardSource.getSet(packId);
+  const set          = CardSource.getSet(packId);
   const cardsPerPack = set?.cardsPerPack ?? 5;
-  const candidates = buildCandidates(packId);
+  const candidates   = buildCandidates(packId);
   if (!candidates.length) return [];
 
   const total = candidates.reduce((s, c) => s + c.weight, 0);
 
   return candidates.map(({ card, weight }) => {
-    const perDraw    = weight / total;
+    const perDraw = weight / total;
     // P(at least one in cardsPerPack draws)
-    const perPack    = 1 - Math.pow(1 - perDraw, cardsPerPack);
+    const perPack = 1 - Math.pow(1 - perDraw, cardsPerPack);
     return { ...card, pullRate: perPack };
   }).sort((a, b) => a.pullRate - b.pullRate);  // rarest first
 }
