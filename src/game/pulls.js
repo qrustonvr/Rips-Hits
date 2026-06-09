@@ -1,73 +1,67 @@
-// Pull engine — turns "open a pack of game X" into an ordered list of cards.
-//
-// A pack is a sequence of SLOTS. Early slots are filler (commons/uncommons);
-// the final slot is the "hit slot" with the juicy odds. Ordering matters: the
-// reveal sequence walks the array in order, so we sort commons -> rare last to
-// build toward the payoff. Fast-open just calls openPack() N times.
+// Pull engine — pure per-card weighted draws (no fixed rarity slots).
+// Each card's weight is determined by its tier; rarer cards have lower weight.
+// This removes guaranteed rarity slots so every pull is a true random draw.
 
 import { CardSource } from './cardSource.js';
 import { TIER, tierRank } from './rarity.js';
 
-// Weighted random pick from a {tier: weight} map.
-function rollTier(weights) {
-  const entries = Object.entries(weights);
-  const total = entries.reduce((s, [, w]) => s + w, 0);
-  let r = Math.random() * total;
-  for (const [tier, w] of entries) {
-    r -= w;
-    if (r <= 0) return tier;
+// Weight per tier — lower = harder to pull.
+export const TIER_WEIGHT = {
+  [TIER.COMMON]:      100,
+  [TIER.UNCOMMON]:    28,
+  [TIER.RARE]:        6.5,
+  [TIER.ULTRA_RARE]:  1.5,
+  [TIER.SECRET_RARE]: 0.3,
+};
+
+// Build a flat weighted candidate list from the entire pool.
+function buildCandidates(packId) {
+  const pool = CardSource.getPool(packId);
+  if (!pool) return [];
+  const candidates = [];
+  for (const [tier, cards] of Object.entries(pool)) {
+    const w = TIER_WEIGHT[tier] ?? 1;
+    for (const card of cards) candidates.push({ card: { ...card }, weight: w });
   }
-  return entries[0][0];
+  return candidates;
 }
 
-// Slot odds. `filler` slots make up the bulk; the single `hit` slot carries
-// the dream. Tuned so a hit (Rare+) lands most packs but UR/SR stay special.
-const FILLER_WEIGHTS = {
-  [TIER.COMMON]: 70,
-  [TIER.UNCOMMON]: 28,
-  [TIER.RARE]: 2,
-};
-
-const HIT_WEIGHTS = {
-  [TIER.RARE]: 74,
-  [TIER.ULTRA_RARE]: 22,
-  [TIER.SECRET_RARE]: 4,
-};
-
-export function openPack(game) {
-  const set = CardSource.getSet(game);
-  const count = set?.cardsPerPack ?? 10;
-
-  const cards = [];
-  // All but the last slot are filler.
-  for (let i = 0; i < count - 1; i++) {
-    cards.push(drawCard(game, rollTier(FILLER_WEIGHTS)));
+// Weighted random pick from the candidate list.
+function weightedPick(candidates) {
+  const total = candidates.reduce((s, c) => s + c.weight, 0);
+  let r = Math.random() * total;
+  for (const { card, weight } of candidates) {
+    r -= weight;
+    if (r <= 0) return { ...card };
   }
-  // Final slot is the guaranteed hit.
-  cards.push(drawCard(game, rollTier(HIT_WEIGHTS)));
-
-  // Build toward the payoff: weakest first, strongest last.
-  cards.sort((a, b) => tierRank(a.tier) - tierRank(b.tier));
-
-  return cards;
+  return { ...candidates[candidates.length - 1].card };
 }
 
 let _uidSeq = 0;
-
-function drawCard(game, tier) {
-  const c = CardSource.pick(game, tier) ?? {
-    id: `${game}-fallback-${Math.random().toString(36).slice(2, 7)}`,
-    game, name: 'Mystery Card', tier, art: null, holoPattern: null, basePrice: 0,
-  };
-  // Final per-pull instance fields. Counter guarantees uid uniqueness even
-  // for many cards drawn within the same millisecond.
-  c.uid = `${c.id}-${Date.now().toString(36)}-${(_uidSeq++).toString(36)}`;
-  c.price = +(c.basePrice * (0.85 + Math.random() * 0.4)).toFixed(2);
-  return c;
+function finalizeCard(card) {
+  card.uid   = `${card.id}-${Date.now().toString(36)}-${(_uidSeq++).toString(36)}`;
+  card.price = +(card.basePrice * (0.85 + Math.random() * 0.4)).toFixed(2);
+  return card;
 }
 
-// Fast-open: open N packs at once, returning a flat tally + per-pack groups.
-export function openManyPacks(game, n) {
+// Open a single pack — N weighted draws, sorted weakest→strongest for reveal.
+export function openPack(game) {
+  const set        = CardSource.getSet(game);
+  const count      = set?.cardsPerPack ?? 5;
+  const candidates = buildCandidates(game);
+
+  if (!candidates.length) return [];
+
+  const cards = [];
+  for (let i = 0; i < count; i++) {
+    cards.push(finalizeCard(weightedPick(candidates)));
+  }
+  cards.sort((a, b) => tierRank(a.tier) - tierRank(b.tier));
+  return cards;
+}
+
+// Open N packs at once (for multi-pack opening).
+export function openManyPacks(game, n = 1) {
   const packs = [];
   for (let i = 0; i < n; i++) packs.push(openPack(game));
   const flat = packs.flat();
@@ -78,4 +72,24 @@ export function tallyByTier(cards) {
   const t = {};
   for (const c of cards) t[c.tier] = (t[c.tier] ?? 0) + 1;
   return t;
+}
+
+// ---------------------------------------------------------------------------
+// Pull rate calculation — per-card probability in a single pack opening.
+// Returns array sorted by pullRate ascending (rarest first for display).
+// ---------------------------------------------------------------------------
+export function getPullRates(packId) {
+  const set        = CardSource.getSet(packId);
+  const cardsPerPack = set?.cardsPerPack ?? 5;
+  const candidates = buildCandidates(packId);
+  if (!candidates.length) return [];
+
+  const total = candidates.reduce((s, c) => s + c.weight, 0);
+
+  return candidates.map(({ card, weight }) => {
+    const perDraw    = weight / total;
+    // P(at least one in cardsPerPack draws)
+    const perPack    = 1 - Math.pow(1 - perDraw, cardsPerPack);
+    return { ...card, pullRate: perPack };
+  }).sort((a, b) => a.pullRate - b.pullRate);  // rarest first
 }

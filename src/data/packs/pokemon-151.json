@@ -3,6 +3,7 @@
   "name": "Pokémon 151",
   "game": "pokemon",
   "cardsPerPack": 5,
+  "price": 5,
   "packTexture": "/packs/RipsNHits_Default.png",
   "releaseDate": "2023-09-22",
   "pool": {

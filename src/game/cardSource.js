@@ -127,18 +127,18 @@ for (const pack of PACKS) {
 // Public API
 // ---------------------------------------------------------------------------
 export const CardSource = {
-  // All packs as { id, name, game, cardsPerPack, packTexture, releaseDate }.
+  // All packs as { id, name, game, cardsPerPack, packTexture, releaseDate, price }.
   getSets() {
-    return PACKS.map(({ id, name, game, cardsPerPack, packTexture, releaseDate }) => ({
-      id, name, game, cardsPerPack, packTexture, releaseDate,
+    return PACKS.map(({ id, name, game, cardsPerPack, packTexture, releaseDate, price }) => ({
+      id, name, game, cardsPerPack, packTexture, releaseDate, price: price ?? 5,
     }));
   },
 
   getSet(packId) {
     const p = _packMap[packId];
     if (!p) return null;
-    const { id, name, game, cardsPerPack, packTexture, releaseDate } = p;
-    return { id, name, game, cardsPerPack, packTexture, releaseDate };
+    const { id, name, game, cardsPerPack, packTexture, releaseDate, price } = p;
+    return { id, name, game, cardsPerPack, packTexture, releaseDate, price: price ?? 5 };
   },
 
   // Pool for a pack, keyed by normalized tier. Cached per session.

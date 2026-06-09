@@ -347,3 +347,229 @@ html, body {
   padding: 1px 5px; border-radius: 999px;
   text-transform: uppercase;
 }
+
+/* ===== Bankroll HUD ===== */
+#bankroll-hud {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 10;
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid #ffffff18;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 13px; font-weight: 800;
+  color: var(--accent);
+  pointer-events: none;
+}
+.bk-icon { font-size: 14px; }
+
+/* ===== Pack Detail Popup ===== */
+.pack-popup-overlay {
+  position: fixed; inset: 0;
+  z-index: 20;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity 280ms ease;
+}
+.pack-popup-overlay.visible { opacity: 1; }
+
+.pack-popup {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 21;
+  max-height: 88vh;
+  background: #1a1a24;
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid #ffffff18;
+  padding: 0 20px 32px;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.pack-popup.visible { transform: translateY(0); }
+
+.pp-handle {
+  width: 36px; height: 4px;
+  border-radius: 999px;
+  background: #ffffff28;
+  margin: 12px auto 16px;
+}
+
+.pp-art-wrap {
+  display: flex; justify-content: center;
+  margin-bottom: 16px;
+}
+.pp-art {
+  height: 180px; width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 8px 24px #000c);
+  border-radius: 8px;
+}
+
+.pp-info { text-align: center; margin-bottom: 20px; }
+.pp-name { font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+.pp-price-tag { font-size: 13px; color: var(--accent); font-weight: 700; }
+
+.pp-qty-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pp-qty-label { font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.pp-qty-pills { display: flex; gap: 6px; }
+.pp-qty-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  border: 1px solid #ffffff20;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all 120ms ease;
+}
+.pp-qty-btn.active {
+  background: var(--accent);
+  color: #10101a;
+  border-color: var(--accent);
+}
+
+.pp-total-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.pp-total-label { font-size: 13px; color: var(--text-dim); }
+.pp-total-value { font-size: 18px; font-weight: 800; color: var(--text); }
+
+.pp-divider { height: 1px; background: #ffffff10; margin-bottom: 16px; }
+
+.pp-rates-header {
+  font-size: 12px; font-weight: 800;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.pp-rates-list {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-bottom: 20px;
+  max-height: 180px; overflow-y: auto;
+}
+.pp-no-rates { font-size: 13px; color: var(--text-dim); }
+.pr-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px;
+}
+.pr-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.pr-name { flex: 1; color: var(--text); }
+.pr-pill {
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 999px;
+  text-transform: uppercase;
+}
+.pr-rate { font-size: 12px; font-weight: 700; color: var(--text-dim); min-width: 42px; text-align: right; }
+
+.pp-open-btn { margin-bottom: 10px; }
+.pp-cancel-btn {}
+
+/* ===== Collection — worth panel ===== */
+.coll-wrap {
+  display: flex; flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+.coll-worth-panel {
+  flex-shrink: 0;
+  padding: max(16px, env(safe-area-inset-top)) 16px 12px;
+  border-bottom: 1px solid #ffffff0e;
+  background: var(--surface);
+}
+.cw-top {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.cw-label { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 2px; }
+.cw-value { font-size: 28px; font-weight: 900; color: var(--text); letter-spacing: -0.02em; }
+.cw-count { font-size: 12px; color: var(--text-dim); font-weight: 600; padding-bottom: 4px; }
+
+.cw-graph {
+  width: 100%; height: 72px; display: block;
+  border-radius: 8px;
+  overflow: visible;
+}
+
+.coll-grid-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+.coll-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* ===== Card detail modal ===== */
+.coll-modal-overlay {
+  position: fixed; inset: 0;
+  z-index: 30;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity 280ms ease;
+}
+.coll-modal-overlay.visible { opacity: 1; }
+
+.coll-modal {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 31;
+  background: #1a1a24;
+  border-radius: 20px 20px 0 0;
+  border-top: 1px solid #ffffff18;
+  padding: 0 20px 36px;
+  transform: translateY(100%);
+  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.coll-modal.visible { transform: translateY(0); }
+
+.cm-handle {
+  width: 36px; height: 4px;
+  border-radius: 999px;
+  background: #ffffff28;
+  margin: 12px auto 20px;
+}
+.cm-img-wrap {
+  display: flex; justify-content: center;
+  margin-bottom: 16px;
+}
+.cm-img {
+  height: 200px; width: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  filter: drop-shadow(0 8px 24px #000c);
+}
+.cm-img-placeholder {
+  height: 200px; width: 140px;
+  background: var(--surface);
+  border-radius: 10px;
+}
+.cm-name {
+  text-align: center;
+  font-size: 20px; font-weight: 800;
+  margin-bottom: 8px;
+}
+.cm-pill {
+  display: block; text-align: center;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 12px; border-radius: 999px;
+  width: fit-content; margin: 0 auto 12px;
+}
+.cm-price {
+  text-align: center;
+  font-size: 14px; color: var(--text-dim);
+  margin-bottom: 20px;
+}
+.cm-sell-btn { margin-bottom: 10px; }
+.cm-close-btn {}

@@ -5,8 +5,10 @@ import { TearGesture, PackRotateGesture } from '../interact/gestures.js';
 import { SoundManager } from '../audio/sound.js';
 import { Particles } from './effects/particles.js';
 import { RevealController } from './cards/revealController.js';
-import { openPack } from '../game/pulls.js';
+import { openManyPacks } from '../game/pulls.js';
 import { CardSource } from '../game/cardSource.js';
+
+const QTY_KEY = 'ripsandhits.pendingQty';
 
 export class SceneManager {
   constructor(canvas) {
@@ -47,11 +49,16 @@ export class SceneManager {
       scene:     this.scene,
     });
 
-    window.addEventListener('pack:open',       () => this.reveal.begin(openPack(this.game)));
+    // Open N packs worth of cards in one reveal sequence.
+    window.addEventListener('pack:open', () => {
+      const qty = parseInt(sessionStorage.getItem(QTY_KEY) ?? '1', 10) || 1;
+      const { flat } = openManyPacks(this.game, qty);
+      this.reveal.begin(flat);
+    });
+
     window.addEventListener('game:ripAnother', () => this.ripAnother());
 
-    // When pack selection changes, update game id and rebuild the pack model
-    // (so the correct art texture shows before the user rips it open).
+    // When pack selection changes, update game id and rebuild the pack model.
     window.addEventListener('game:setGame', (e) => {
       if (e.detail?.game && e.detail.game !== this.game) {
         this.game = e.detail.game;
@@ -74,7 +81,6 @@ export class SceneManager {
 
   buildPack() {
     if (this.pack) this.scene.remove(this.pack.group);
-    // Read pack art path from the JSON definition so each pack has its own texture.
     const packTexture = CardSource.getSet(this.game)?.packTexture ?? null;
     this.pack = createPack(packTexture);
     this.scene.add(this.pack.group);
