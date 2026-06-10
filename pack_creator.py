@@ -20,10 +20,15 @@ Usage (live API + install into the app):
         --cards-per-pack 5 --pool-size 25 --margin 0.30 \
         --app-dir /path/to/Rips-Hits --install
 
-Self-test (no network, embedded sample data, verifies math + output shape):
-    python3 pack_creator.py --mock --install --app-dir /path/to/Rips-Hits
+Preview offline (no network, embedded sample data — placeholder card IDs, do
+NOT deploy): python3 pack_creator.py --mock
 
-Omit --install to just write the JSON without touching cards.js.
+Verify an existing pack against the LIVE API (catches mislabeled cards):
+    python3 pack_creator.py --verify-pack src/data/packs/<id>.json
+
+Note: --mock packs use placeholder IDs and cannot be installed (the app resolves
+images live by id, so fake ids render as the wrong Pokémon). Omit --mock for a
+real, deployable pack. Omit --install to just write JSON without touching cards.js.
 """
 
 import argparse
@@ -377,6 +382,44 @@ def register_in_cards_js(pack, app_dir):
 
 # ------------------------------- output ------------------------------------ #
 
+def verify_pack(path, sleep=0.12):
+    """Re-fetch every card id in an existing pack JSON from the LIVE TCGdex API
+    and flag any card whose stored name disagrees with the real card (the
+    Combusken-labeled-Charmander class of bug). Returns the number of mismatches."""
+    pack = json.load(open(path, encoding="utf-8"))
+    pool = pack.get("pool", {})
+    print(f"Verifying {pack.get('name', path)} — {sum(len(v) for v in pool.values())} cards\n")
+    print(f"{'id':<16}{'stored name':<26}{'live name':<26}{'cat':<9}dexId   status")
+    print("-" * 92)
+    mismatches = 0
+    for tier, cards in pool.items():
+        for c in cards:
+            cid, stored = c.get("id"), (c.get("name") or "")
+            try:
+                live = get_card(cid)
+            except Exception as e:  # noqa: BLE001
+                print(f"{cid:<16}{stored:<26}{'<fetch error>':<26}{'':<9}        FETCH-FAIL ({e})")
+                mismatches += 1
+                continue
+            lname = live.get("name") or ""
+            cat = live.get("category") or "?"
+            dex = live.get("dexId") or []
+            sl, ll = stored.lower().strip(), lname.lower().strip()
+            name_ok = bool(sl) and bool(ll) and (sl in ll or ll in sl)
+            ok = name_ok and cat == "Pokemon"
+            status = "ok" if ok else ("NOT-POKEMON" if cat != "Pokemon" else "NAME-MISMATCH")
+            if not ok:
+                mismatches += 1
+            print(f"{cid:<16}{stored:<26}{lname:<26}{cat:<9}{str(dex):<8}{status}")
+            time.sleep(sleep)
+    print("-" * 92)
+    if mismatches:
+        print(f"\n{mismatches} mismatch(es) found — this pack has wrong/mislabeled cards.")
+    else:
+        print("\nAll cards verified: stored names match the live TCGdex cards.")
+    return mismatches
+
+
 def render_markdown(pack):
     m = pack["meta"]
     warn = "" if m["evTargetMet"] else \
@@ -425,8 +468,20 @@ def main():
     ap.add_argument("--install", action="store_true",
                     help="write pack into src/data/packs and register in cards.js")
     ap.add_argument("--mock", action="store_true",
-                    help="run offline against embedded sample data")
+                    help="run offline against embedded sample data (TESTING ONLY)")
+    ap.add_argument("--allow-mock-install", action="store_true",
+                    help="permit installing a --mock pack (placeholder data; never deploy)")
+    ap.add_argument("--verify-pack", default=None,
+                    help="verify an existing pack JSON against the live TCGdex API and exit")
     args = ap.parse_args()
+
+    if args.verify_pack:
+        sys.exit(1 if verify_pack(args.verify_pack) else 0)
+
+    if args.mock and args.install and not args.allow_mock_install:
+        sys.exit("Refusing to install a --mock pack: it uses placeholder card IDs "
+                 "and must never be deployed. Drop --mock to fetch real cards, or "
+                 "pass --allow-mock-install to write it to a throwaway --app-dir.")
 
     pack = build_pack(
         args.name, args.price, args.max_value, args.pokemon, game=args.game,

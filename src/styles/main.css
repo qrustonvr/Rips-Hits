@@ -131,15 +131,21 @@ html, body {
   color: var(--text);
 }
 
-/* Container for centered reveal text (sits in the lower third) */
+/* Container for reveal text — anchored to the bottom of the screen, below the cards */
 .open-center {
   position: absolute;
-  left: 0; right: 0; bottom: 0; top: 0;
+  left: 0; right: 0; bottom: 28px;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: flex-end;
-  padding-bottom: 16%;
-  gap: 14px;
+  align-items: center;
+  gap: 10px;
   pointer-events: none;
+}
+
+/* Flip All button — compact, not full-width */
+#op-flip-all {
+  width: auto;
+  padding: 8px 28px;
+  pointer-events: auto;
 }
 
 .reveal-name {

@@ -17,13 +17,14 @@ const CFG = {
   shootDur:         0.44,   // s for the arc flight of each card
   shootArcHeight:   0.55,   // world-units of upward arc peak
   shootLandSpreadX: 0.65,   // half-range of the scattered landing X positions
-  shootLandY:      -0.15,   // world-Y of the scattered landing cloud
+  shootLandY:       0.70,   // world-Y of the scattered landing cloud (above the pack)
+  packSlideDownY:   1.20,   // how far pack drops during shoot-out before PACK_EXIT takes over
   packExitDur:      0.42,   // s for the pack to slide off-screen
   arrangeDur:       0.40,   // s for each card to slide into its row slot
   arrangeStagger:   0.045,  // s between cards starting their slide
   flipDur:          0.20,   // s for the flip animation
   flipScalePeak:    1.13,   // scale multiplier at the reveal moment (pop)
-  rowY:            -0.50,   // world-Y centre of the finished card row
+  rowY:             0.20,   // world-Y centre of the finished card row
   rowPadding:       0.10,   // fraction of screen width reserved as left/right margin
   summaryDelay:     1.20,   // s after last reveal before the summary fires
 };
@@ -149,6 +150,7 @@ export class RevealController {
     this._revealedCount  = 0;
     this._awaitingFinish = false;
     this._finishTimer    = 0;
+    this._packExitStartY = 0;
     if (this.pack) this.pack.revealing = false;
     this.camera.position.copy(this._camBase);
   }
@@ -343,6 +345,13 @@ export class RevealController {
       this._nextShootIdx++;
     }
 
+    // Slide the pack downward while cards are shooting so it clears the cards.
+    const totalShootDur = (this.cards.length - 1) * CFG.shootStagger + CFG.shootDur;
+    if (this.pack?.group) {
+      const k = Math.min(this.timer / Math.max(totalShootDur, 0.3), 1);
+      this.pack.group.position.y = -easeInOut(k) * CFG.packSlideDownY;
+    }
+
     // Advance all in-flight cards; detect when the burst is complete.
     let allDone = (this._nextShootIdx >= this.cards.length);
     for (const c of this.cards) {
@@ -361,7 +370,12 @@ export class RevealController {
       }
     }
 
-    if (allDone) { this.phase = PH.PACK_EXIT; this.timer = 0; }
+    if (allDone) {
+      // Remember where the pack is so PACK_EXIT can continue from there.
+      this._packExitStartY = this.pack?.group?.position.y ?? 0;
+      this.phase = PH.PACK_EXIT;
+      this.timer = 0;
+    }
   }
 
   _launchCard(idx) {
@@ -412,8 +426,10 @@ export class RevealController {
   _tickPackExit(dt) {
     const k = Math.min(this.timer / CFG.packExitDur, 1);
     if (this.pack?.group) {
-      const e = easeInOut(k);
-      this.pack.group.position.y    = -e * 4.2;
+      const e       = easeInOut(k);
+      const startY  = this._packExitStartY ?? 0;
+      // Continue sliding from wherever shoot-out left off → fully off-screen.
+      this.pack.group.position.y    = startY + (-4.2 - startY) * e;
       this.pack.group.scale.setScalar(1 - e * 0.35);
     }
     if (k >= 1) {

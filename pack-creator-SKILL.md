@@ -93,8 +93,24 @@ What it does:
   import + array entry to `src/data/cards.js` (idempotent).
 
 Print the script's markdown summary to the user. Omit `--install` to preview
-the JSON without touching the app. Run without `--mock` for live prices
-(`--mock` uses embedded sample data for offline testing only).
+the JSON without touching the app.
+
+**Never deploy a `--mock` pack.** `--mock` uses placeholder card IDs, and the
+app resolves each card's image LIVE by its id — so fake ids render as the wrong
+Pokémon (e.g. `swsh3-23` is really Combusken, not Charmander). The script
+refuses `--mock --install` for this reason. Always run WITHOUT `--mock` to build
+a real, deployable pack with genuine ids, real prices, and dexId verification.
+
+After generating (or before deploying) any pack, lint it against the live API:
+
+```
+python3 .claude/skills/pack-creator/scripts/pack_creator.py \
+  --verify-pack src/data/packs/<id>.json
+```
+
+This re-fetches every card id and flags any stored name that disagrees with the
+real TCGdex card (name mismatch or non-Pokémon), exiting non-zero if any are
+found — run it in CI before shipping a pack.
 
 ---
 
@@ -175,6 +191,8 @@ via `src/data/tcgdex.js`.
 - USD: `pricing.tcgplayer.<holofoil|normal|reverse-holofoil|...>.marketPrice`
 - Species check: card.`category`=="Pokemon" AND card.`dexId` ∩ target dex ids
 - Image: brief `image` + `/high.webp`
-- Script: `scripts/pack_creator.py` (`--install`, `--mock`, `--app-dir`, `--exact-name`)
+- Script: `scripts/pack_creator.py` (`--install`, `--mock`, `--app-dir`, `--exact-name`, `--verify-pack`)
+- NEVER deploy `--mock` packs (placeholder ids → wrong images); build real packs without `--mock`
+- Lint any pack: `--verify-pack src/data/packs/<id>.json` (re-fetches live, flags mismatches)
 - Name matching: inclusive whole-word by default (ex/VMAX/multi included); `--exact-name` for standalone only
 - Docs: https://tcgdex.dev/markets-prices , https://tcgdex.dev/rest/cards
