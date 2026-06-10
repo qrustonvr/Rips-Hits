@@ -18,14 +18,17 @@ const CFG = {
   shootArcHeight:   0.55,   // world-units of upward arc peak
   shootLandSpreadX: 0.65,   // half-range of the scattered landing X positions
   shootLandY:       0.70,   // world-Y of the scattered landing cloud (above the pack)
-  packSlideDownY:   1.20,   // how far pack drops during shoot-out before PACK_EXIT takes over
+  packSlideDownY:   1.80,   // how far pack drops during shoot-out before PACK_EXIT takes over
   packExitDur:      0.42,   // s for the pack to slide off-screen
   arrangeDur:       0.40,   // s for each card to slide into its row slot
   arrangeStagger:   0.045,  // s between cards starting their slide
   flipDur:          0.20,   // s for the flip animation
   flipScalePeak:    1.13,   // scale multiplier at the reveal moment (pop)
-  rowY:             0.20,   // world-Y centre of the finished card row
+  rowY:             0.10,   // world-Y centre of the finished card row (or centre of multi-row block)
   rowPadding:       0.10,   // fraction of screen width reserved as left/right margin
+  rowSpacingFactor: 1.20,   // vertical gap between rows as a multiple of card height
+  minCardScale:     0.28,   // minimum card scale before adding another row
+  maxRowCount:      3,      // hard cap on number of rows
   summaryDelay:     1.20,   // s after last reveal before the summary fires
 };
 
@@ -292,20 +295,40 @@ export class RevealController {
     if (n === 0) return [];
     if (n === 1) return [{ pos: new THREE.Vector3(0, CFG.rowY, 0), scale: 1.0 }];
 
-    // Derive world-space screen width at z=0 from camera params.
+    // World-space usable width at z=0.
     const halfH   = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
                   * this.camera.position.z;
-    const screenW = halfH * this.camera.aspect * 2;
-    const usableW = screenW * (1 - 2 * CFG.rowPadding);
-    const spacing = usableW / (n - 1);
-    // Scale cards down if spacing is tighter than card width (e.g. portrait / many cards).
-    const scale   = Math.max(0.35, Math.min(1.0, spacing / (CARD.W * 1.1)));
-    const startX  = -usableW / 2;
+    const usableW = halfH * this.camera.aspect * 2 * (1 - 2 * CFG.rowPadding);
 
-    return this.cards.map((_, i) => ({
-      pos:   new THREE.Vector3(startX + i * spacing, CFG.rowY, 0),
-      scale,
-    }));
+    // Find the fewest rows where every card stays at or above CFG.minCardScale.
+    let numRows = 1;
+    for (let r = 1; r <= CFG.maxRowCount; r++) {
+      numRows = r;
+      const perRow  = Math.ceil(n / r);
+      const spacing = perRow > 1 ? usableW / (perRow - 1) : usableW;
+      if (Math.min(1.0, spacing / (CARD.W * 1.1)) >= CFG.minCardScale) break;
+    }
+
+    const perRow     = Math.ceil(n / numRows);
+    const colSpacing = perRow > 1 ? usableW / (perRow - 1) : 0;
+    const scale      = Math.max(0.26, Math.min(1.0,
+      perRow > 1 ? colSpacing / (CARD.W * 1.1) : 1.0,
+    ));
+
+    const rowSpacing = CARD.H * scale * CFG.rowSpacingFactor;
+    const topRowY    = CFG.rowY + ((numRows - 1) * rowSpacing) / 2;
+
+    return this.cards.map((_, i) => {
+      const row        = Math.floor(i / perRow);
+      const col        = i % perRow;
+      // Last row may be shorter — centre it independently.
+      const cardsInRow = Math.min(perRow, n - row * perRow);
+      const rowStartX  = -((cardsInRow - 1) * colSpacing) / 2;
+      return {
+        pos:   new THREE.Vector3(rowStartX + col * colSpacing, topRowY - row * rowSpacing, 0),
+        scale,
+      };
+    });
   }
 
   // ---- main update -----------------------------------------------------------
@@ -345,11 +368,11 @@ export class RevealController {
       this._nextShootIdx++;
     }
 
-    // Slide the pack downward while cards are shooting so it clears the cards.
+    // Slide the pack down with easeOut (moves fast immediately, clearing card paths).
     const totalShootDur = (this.cards.length - 1) * CFG.shootStagger + CFG.shootDur;
     if (this.pack?.group) {
       const k = Math.min(this.timer / Math.max(totalShootDur, 0.3), 1);
-      this.pack.group.position.y = -easeInOut(k) * CFG.packSlideDownY;
+      this.pack.group.position.y = -easeOut(k) * CFG.packSlideDownY;
     }
 
     // Advance all in-flight cards; detect when the burst is complete.
