@@ -16,8 +16,8 @@ const RIP_GAP = 0.20;   // gap between successive back-pack rips starting
 const MAX_VIS = 4;      // max back packs shown in the stack
 
 // Back-pack stack offsets per level (i=1 is first behind front).
-const BACK_X =  0.06;
-const BACK_Y = -0.02;
+const BACK_X = -0.06;  // stack to the left
+const BACK_Y =  0.02;  // stack upward
 const BACK_Z = -0.05;
 
 function easeOut(t) { return 1 - Math.pow(1 - t, 2); }
@@ -132,6 +132,7 @@ export class SceneManager {
       const bp = createPack(packTexture);
       // Stack slightly right, down, and behind the front pack.
       bp.group.position.set((i + 1) * BACK_X, (i + 1) * BACK_Y, (i + 1) * BACK_Z);
+      bp.strip.tab.visible = false;  // only the front pack shows the grab tab
       this.scene.add(bp.group);
       this.backPacks.push({ pack: bp, done: false });
     }
