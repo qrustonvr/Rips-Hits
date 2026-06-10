@@ -1,5 +1,5 @@
 // Open screen — the 3D pack + reveal live behind this overlay.
-import { addCards } from '../../state/collection.js';
+import { addCards, addToBankroll } from '../../state/collection.js';
 import { rarityOf, TIER_ORDER } from '../../game/rarity.js';
 
 export const open = {
@@ -157,45 +157,100 @@ export const open = {
   },
 
   _showSummary({ tally, cards, best }) {
-    try { addCards(cards); } catch {}
+    // Track which card indices have been sold before adding to collection.
+    const soldSet = new Set();
 
-    const rows = TIER_ORDER
-      .filter((t) => tally[t])
-      .map((t) => {
-        const r = rarityOf(t);
-        return `<div class="sum-row">
-          <span class="sum-dot" style="background:${r.colorCss}"></span>
-          <span class="sum-label">${r.label}</span>
-          <span class="sum-count">×${tally[t]}</span>
-        </div>`;
-      }).join('');
+    const priceOf = (card) => +(card._livePrice ?? card.price ?? 0);
+
+    const totalValue = () =>
+      cards.reduce((sum, c, i) => sum + (soldSet.has(i) ? 0 : priceOf(c)), 0);
 
     const bestLine = best
       ? `<div class="sum-best">Best pull: <b style="color:${best.colorCss}">${best.name}</b> · ${best.label}</div>`
       : '';
 
+    const renderTile = (card, i) => {
+      const r      = rarityOf(card.tier);
+      const price  = priceOf(card);
+      const isSold = soldSet.has(i);
+      const img    = card._imageUrl
+        ? `<img src="${card._imageUrl}" class="sum-cimg" alt="${card.name}" loading="lazy">`
+        : `<div class="sum-cimg sum-cimg--blank" style="border-color:${r.colorCss}22"></div>`;
+      return `
+        <div class="sum-ctile${isSold ? ' sum-ctile--sold' : ''}" data-idx="${i}">
+          <div class="sum-cimg-wrap">${img}${isSold ? '<div class="sum-sold-badge">SOLD</div>' : ''}</div>
+          <div class="sum-cname">${card.name}</div>
+          <div class="sum-cprice" style="color:${r.colorCss}">~$${price.toFixed(2)}</div>
+          ${isSold
+            ? '<div class="sum-csold-label">Sold</div>'
+            : `<button class="sum-sell-btn" data-idx="${i}">Sell $${price.toFixed(2)}</button>`}
+        </div>`;
+    };
+
+    const renderSellAll = () => {
+      const unsold  = cards.filter((_, i) => !soldSet.has(i));
+      const total   = unsold.reduce((s, c) => s + priceOf(c), 0);
+      const btn     = s.querySelector('#op-sell-all');
+      if (!btn) return;
+      if (unsold.length === 0) { btn.hidden = true; return; }
+      btn.hidden = false;
+      btn.textContent = `Sell All  $${total.toFixed(2)}`;
+    };
+
     const s = this.$('#op-summary');
     s.hidden = false;
     s.innerHTML = `
-      <div class="sum-card">
+      <div class="sum-card sum-card--wide">
         <div class="sum-title">Pack ripped!</div>
         ${bestLine}
-        <div class="sum-rows">${rows}</div>
+        <div class="sum-cgrid" id="sum-cgrid"></div>
+        <button class="btn-ghost sum-sell-all-btn" id="op-sell-all">Sell All</button>
         <div class="sum-actions">
           <button class="btn-primary" id="op-again">Rip another</button>
           <button class="btn-ghost" id="op-binder">View collection</button>
         </div>
       </div>`;
 
-    s.querySelector('#op-again').addEventListener('click', () => {
+    const grid = s.querySelector('#sum-cgrid');
+    const redraw = () => {
+      grid.innerHTML = cards.map((c, i) => renderTile(c, i)).join('');
+      renderSellAll();
+      // Re-attach sell button listeners after redraw.
+      grid.querySelectorAll('.sum-sell-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const i = +btn.dataset.idx;
+          soldSet.add(i);
+          addToBankroll(priceOf(cards[i]));
+          redraw();
+        });
+      });
+    };
+    redraw();
+
+    s.querySelector('#op-sell-all').addEventListener('click', () => {
+      cards.forEach((c, i) => {
+        if (!soldSet.has(i)) { soldSet.add(i); addToBankroll(priceOf(c)); }
+      });
+      redraw();
+    });
+
+    const closeSummary = () => {
+      // Only add unsold cards to the collection.
+      const kept = cards.filter((_, i) => !soldSet.has(i));
+      try { if (kept.length) addCards(kept); } catch {}
       s.hidden = true;
       this._clearReveal();
-      const c  = this.$('#op-counter');  if (c)  c.hidden  = true;
-      const fa = this.$('#op-flip-all'); if (fa) fa.hidden = true;
+      const ctr = this.$('#op-counter');  if (ctr) ctr.hidden = true;
+      const fa  = this.$('#op-flip-all'); if (fa)  fa.hidden  = true;
+    };
+
+    s.querySelector('#op-again').addEventListener('click', () => {
+      closeSummary();
       this._hint('Grab the green tab · pull across');
       window.dispatchEvent(new CustomEvent('game:ripAnother'));
     });
     s.querySelector('#op-binder').addEventListener('click', () => {
+      closeSummary();
       this.router?.go('collection');
     });
   },

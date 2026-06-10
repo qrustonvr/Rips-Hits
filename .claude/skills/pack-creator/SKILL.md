@@ -184,6 +184,11 @@ via `src/data/tcgdex.js`.
   printed "species check rejected" list to see anything that was filtered out.
 - Registration is idempotent: re-running updates the JSON and won't duplicate
   the cards.js entry.
+- **`cards.js` uses `export const PACKS` (uppercase).** Any fallback/manual
+  registration MUST add the import variable to the `PACKS` array, not a
+  lowercase `packs` array. After installing, verify the pack variable appears
+  inside `export const PACKS = [ ... ]` — if it's only imported but not in the
+  array, the pack will be silently invisible in the app.
 
 ## Quick reference
 - Search: `GET https://api.tcgdex.net/v2/en/cards?name=<Pokemon>` → CardBrief[] (no price)

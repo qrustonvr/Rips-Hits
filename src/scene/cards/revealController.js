@@ -134,7 +134,7 @@ export class RevealController {
           const livePrice = extractPrice(tcgCard);
           if (livePrice != null) c.data._livePrice = livePrice;
           const artUrl = getImageUrl(tcgCard);
-          if (artUrl) c.setArt(artUrl);
+          if (artUrl) { c.setArt(artUrl); c.data._imageUrl = artUrl; }
         })
         .catch((err) => console.error(`[reveal] TCGdex failed for ${id}:`, err));
     });

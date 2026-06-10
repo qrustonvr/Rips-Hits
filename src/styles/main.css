@@ -205,6 +205,13 @@ html, body {
   padding: 22px;
   box-shadow: 0 20px 60px #000000aa;
 }
+/* Wide variant used for the card-grid summary */
+.sum-card--wide {
+  max-width: min(96vw, 680px);
+  max-height: 80vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .sum-title { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
 .sum-best { font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
 .sum-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
@@ -213,6 +220,71 @@ html, body {
 .sum-label { flex: 1; color: var(--text); }
 .sum-count { color: var(--text-dim); font-weight: 700; }
 .sum-actions { display: flex; flex-direction: column; gap: 10px; }
+
+/* ---- Card grid (pulled cards with sell buttons) ---- */
+.sum-cgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sum-ctile {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: opacity 0.25s;
+}
+.sum-ctile--sold { opacity: 0.38; }
+.sum-cimg-wrap {
+  position: relative; width: 100%;
+  aspect-ratio: 5 / 7;
+}
+.sum-cimg {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+.sum-cimg--blank {
+  background: #1a1a26;
+  border: 1px solid #ffffff18;
+  border-radius: 6px;
+}
+.sum-sold-badge {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #00000088;
+  border-radius: 6px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.sum-cname {
+  font-size: 10px; font-weight: 600; text-align: center;
+  color: var(--text); line-height: 1.2;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sum-cprice {
+  font-size: 10px; font-weight: 700;
+}
+.sum-sell-btn {
+  width: 100%;
+  padding: 4px 0;
+  font-size: 10px; font-weight: 700;
+  background: transparent;
+  border: 1px solid #ffffff22;
+  border-radius: 6px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.sum-sell-btn:hover, .sum-sell-btn:active {
+  background: #ffffff14; color: var(--text);
+}
+.sum-csold-label {
+  font-size: 10px; font-weight: 700; color: var(--text-dim);
+}
+.sum-sell-all-btn {
+  width: 100%; margin-bottom: 12px;
+  font-size: 13px; font-weight: 700;
+}
 
 /* ===== Home screen ===== */
 

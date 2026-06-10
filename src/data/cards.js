@@ -11,4 +11,5 @@ import charizardLinePack from './packs/charizard-line.json';
 
 export const PACKS = [
   pokemon151,
+  charizardLinePack,
 ];
