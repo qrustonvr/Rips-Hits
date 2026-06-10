@@ -11,9 +11,10 @@ import { CardSource } from '../game/cardSource.js';
 const QTY_KEY = 'ripsandhits.pendingQty';
 
 // Auto-rip timing constants (seconds).
-const RIP_DUR = 0.32;   // duration of each back-pack rip animation
-const RIP_GAP = 0.20;   // gap between successive back-pack rips starting
-const MAX_VIS = 4;      // max back packs shown in the stack
+const RIP_DUR      = 0.10;   // duration of each back-pack rip animation
+const RIP_GAP      = 0.03;   // gap between successive back-pack rips starting
+const SLIDE_SPEED  = 6.0;    // world-units/sec² (easeOut slide-off speed)
+const MAX_VIS      = 4;      // max back packs shown in the stack
 
 // Back-pack stack offsets per level (i=1 is first behind front).
 const BACK_X = -0.06;  // stack to the left
@@ -147,26 +148,16 @@ export class SceneManager {
     this.buildPack();
   }
 
-  // Drive the auto-rip animation for all back packs sequentially.
+  // Drive the rapid auto-rip animation for all back packs.
   _tickAutoRip(dt, t) {
     const ar = this._autoRip;
     if (!ar || !ar.active) return;
 
     ar.timer += dt;
 
-    let sequenceDone = true;
-
     this.backPacks.forEach((b, i) => {
       const packStart = i * (RIP_DUR + RIP_GAP);
-
-      if (ar.timer < packStart) {
-        sequenceDone = false;
-        return;
-      }
-
-      if (b.done) return;
-
-      sequenceDone = false;
+      if (ar.timer < packStart || b.done) return;
 
       const localT = (ar.timer - packStart) / RIP_DUR;
       const p      = Math.min(easeOut(Math.min(localT, 1.0)) * 1.18, 1.18);
@@ -174,30 +165,43 @@ export class SceneManager {
       b.pack.strip.velocity = 1.0 / RIP_DUR;
       b.pack.strip.setProgress(p, t);
 
-      if (localT >= 1.0 && !b.pack.strip.detached) {
-        b.pack.strip.detach();
-      }
-
-      // Slide the pack body downward after the strip passes halfway.
-      if (localT > 0.5) {
-        const slideP = Math.min((localT - 0.5) / 0.7, 1.0);
-        b.pack.group.position.y = (i + 1) * BACK_Y - easeOut(slideP) * 3.0;
-      }
-
+      if (localT >= 1.0 && !b.pack.strip.detached) b.pack.strip.detach();
       b.pack.strip.update(dt);
-
       if (localT >= 1.18) b.done = true;
     });
 
-    // Once every back pack has ripped, wait a short buffer then begin reveal.
-    const lastStart   = (this.backPacks.length - 1) * (RIP_DUR + RIP_GAP);
-    const finishAt    = lastStart + RIP_DUR + 0.12;
-    if (ar.timer >= finishAt && sequenceDone) {
+    // All ripped: start reveal immediately and hand off back packs to the
+    // slide-off pass so they stay visible until the front pack exits.
+    const finishAt = (this.backPacks.length - 1) * (RIP_DUR + RIP_GAP) + RIP_DUR;
+    if (ar.timer >= finishAt && this.backPacks.every(b => b.done)) {
       ar.active = false;
-      this.backPacks.forEach(b => this.scene.remove(b.pack.group));
-      this.backPacks = [];
       this.reveal.begin(ar.flat);
+      // Record each back pack's current Y so we slide from there.
+      this._slideTimer = 0;
+      this._slidePacks = this.backPacks.map(b => ({
+        pack: b.pack,
+        startY: b.pack.group.position.y,
+      }));
+      this.backPacks = [];
     }
+  }
+
+  // After reveal begins, slide back packs downward in sync with the front pack.
+  _tickBackPackSlide(dt) {
+    if (!this._slidePacks || this._slidePacks.length === 0) return;
+
+    this._slideTimer += dt;
+    const p = Math.min(this._slideTimer * SLIDE_SPEED * 0.5, 1.0);
+    const drop = easeOut(p) * 4.0;
+
+    this._slidePacks = this._slidePacks.filter(s => {
+      s.pack.group.position.y = s.startY - drop;
+      if (p >= 1.0) {
+        this.scene.remove(s.pack.group);
+        return false;
+      }
+      return true;
+    });
   }
 
   setActive(active) {
@@ -226,9 +230,10 @@ export class SceneManager {
     this.particles.update(dt);
     this.reveal.update(dt, t);
 
-    // Update back-pack animations (idle bobbing + auto-rip sequencer).
+    // Update back-pack animations (idle bobbing + auto-rip sequencer + slide-off).
     this.backPacks.forEach(b => b.pack.update(dt, t));
     this._tickAutoRip(dt, t);
+    this._tickBackPackSlide(dt);
 
     this.renderer.render(this.scene, this.camera);
   }
