@@ -84,6 +84,11 @@ What it does:
 - Fetches each card's full object and reads USD price
   (`pricing.tcgplayer.<variant>.marketPrice`, highest variant; falls back to
   Cardmarket EUR→USD). Cards with no price are dropped.
+- **Checks that each card has an `image` field.** Cards with no image are
+  silently dropped from the pool — they would render as a blank card in the
+  app. Log each dropped card as `Skip (no image): <id>`. This must happen
+  BEFORE pool selection and weight computation so imageless cards never make
+  it into the final JSON.
 - Filters to `min_value ≤ value ≤ max_value`, spreads the pool across the
   price range, caps to pool size.
 - Computes value-based weights (see Step 3) balanced for `cardsPerPack` draws.

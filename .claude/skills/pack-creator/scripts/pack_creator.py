@@ -254,6 +254,10 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
         val, src = extract_usd_value(card)
         if val is None or val < min_value or val > max_value:
             continue
+        # Drop cards with no image — they render as a blank card in the app.
+        if not card.get("image"):
+            print(f"  Skip (no image): {card.get('id')} {cname}", file=sys.stderr)
+            continue
         priced.append({
             "id": card.get("id"),
             "name": card.get("name"),
