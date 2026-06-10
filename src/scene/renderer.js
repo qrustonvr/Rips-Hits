@@ -11,8 +11,8 @@ import { CardSource } from '../game/cardSource.js';
 const QTY_KEY = 'ripsandhits.pendingQty';
 
 // Auto-rip timing constants (seconds).
-const RIP_DUR      = 0.10;   // duration of each back-pack rip animation
-const RIP_GAP      = 0.03;   // gap between successive back-pack rips starting
+const RIP_DUR      = 0.05;   // duration of each back-pack rip animation
+const RIP_GAP      = 0.015;  // gap between successive back-pack rips starting
 const SLIDE_SPEED  = 6.0;    // world-units/sec² (easeOut slide-off speed)
 const MAX_VIS      = 4;      // max back packs shown in the stack
 

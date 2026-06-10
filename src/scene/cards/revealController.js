@@ -116,6 +116,11 @@ export class RevealController {
       return c;
     });
 
+    // Halve shoot timing when opening multiple packs so the burst feels snappy.
+    const multi = cards.length > 10;
+    this._shootStagger = multi ? CFG.shootStagger * 0.5 : CFG.shootStagger;
+    this._shootDur     = multi ? CFG.shootDur     * 0.5 : CFG.shootDur;
+
     this.active          = true;
     this.phase           = PH.SHOOT_OUT;
     this.timer           = 0;
@@ -363,13 +368,13 @@ export class RevealController {
   _tickShootOut(dt) {
     // Launch cards on their stagger schedule.
     while (this._nextShootIdx < this.cards.length) {
-      if (this.timer < this._nextShootIdx * CFG.shootStagger) break;
+      if (this.timer < this._nextShootIdx * this._shootStagger) break;
       this._launchCard(this._nextShootIdx);
       this._nextShootIdx++;
     }
 
     // Slide the pack down with easeOut (moves fast immediately, clearing card paths).
-    const totalShootDur = (this.cards.length - 1) * CFG.shootStagger + CFG.shootDur;
+    const totalShootDur = (this.cards.length - 1) * this._shootStagger + this._shootDur;
     if (this.pack?.group) {
       const k = Math.min(this.timer / Math.max(totalShootDur, 0.3), 1);
       this.pack.group.position.y = -easeOut(k) * CFG.packSlideDownY;
@@ -382,7 +387,7 @@ export class RevealController {
       if (c._cs !== CS.FLYING)  continue;
 
       c._timer += dt;
-      const k   = Math.min(c._timer / CFG.shootDur, 1);
+      const k   = Math.min(c._timer / this._shootDur, 1);
       this._animateFlight(c, k);
       if (k >= 1) {
         c._cs              = CS.LANDED;
