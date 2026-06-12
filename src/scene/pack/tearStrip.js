@@ -1,7 +1,8 @@
 // Tear strip: the pack's top crimp, modelled as a corrugated foil band with
-// a serrated perforation edge. It peels and curls around a vertical axis as
-// you pull the tab across, then detaches and flies off. Deformation is
-// CPU-side (small vertex count, mobile-cheap).
+// a serrated perforation edge. Pocket-style tear: a glowing slice traces the
+// cut as you pull, the freed foil lifts and leans back like a lid (rippling
+// like a banner), then the whole strip pops upward and floats off.
+// Deformation is CPU-side (small vertex count, mobile-cheap).
 import * as THREE from 'three';
 
 const ss = (a, b, x) => {
@@ -122,24 +123,69 @@ function buildTab() {
   return { tab, mats: [tagMat, chevMat] };
 }
 
+// Soft radial glow sprite texture for the tear-front spark (built once).
+let _glowTex = null;
+function getGlowTex() {
+  if (_glowTex) return _glowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(255,230,160,0.8)');
+  grad.addColorStop(1, 'rgba(255,210,120,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  _glowTex = new THREE.CanvasTexture(c);
+  return _glowTex;
+}
+
 export function createTearStrip(PACK, foilMaterial) {
-  const { W, H } = PACK;
+  const { W, H, STRIP_H } = PACK;
 
   const group = new THREE.Group();
   const yTab = H / 2 - 0.1;
+  const yPerf = H / 2 - STRIP_H;       // perforation line
 
   const geo = buildStripGeometry(PACK);
   const orig = geo.attributes.position.array.slice();
 
   const mat = foilMaterial.clone();
   mat.transparent = true;
-  mat.side = THREE.DoubleSide;         // inside shows when curled
+  mat.side = THREE.DoubleSide;         // inside shows as the lid lifts
   const mesh = new THREE.Mesh(geo, mat);
   group.add(mesh);
 
   const { tab, mats: tabMats } = buildTab();
   tab.position.set(-W / 2 + 0.1, yTab, 0.12);
   group.add(tab);
+
+  // Glowing slice: a spark riding the tear front + a hot line along the cut.
+  const glowTex = getGlowTex();
+  const sparkMat = new THREE.MeshBasicMaterial({
+    map: glowTex,
+    color: 0xffe9a8,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const spark = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), sparkMat);
+  spark.scale.setScalar(0.3);
+  spark.position.set(-W / 2, yPerf, 0.14);
+  spark.visible = false;
+  group.add(spark);
+
+  const lineMat = new THREE.MeshBasicMaterial({
+    color: 0xffd76a,
+    transparent: true,
+    opacity: 0.55,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const line = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.028), lineMat);
+  line.position.set(0, yPerf, 0.07);
+  line.visible = false;
+  group.add(line);
 
   const flyVel = new THREE.Vector3();
   const spin = new THREE.Vector3();
@@ -159,9 +205,7 @@ export function createTearStrip(PACK, foilMaterial) {
       this.progress = p;
       const pos = geo.attributes.position;
       const front = -W / 2 + p * (W * 1.08);
-      const r0 = 0.055;      // initial curl radius
-      const growth = 0.014;  // spiral growth per radian
-      const flutterAmp = 0.012 * Math.min(Math.abs(this.velocity) * 6, 1);
+      const vAmp = Math.min(Math.abs(this.velocity) * 6, 1);
 
       for (let i = 0; i < pos.count; i++) {
         const ox = orig[i * 3];
@@ -171,21 +215,33 @@ export function createTearStrip(PACK, foilMaterial) {
           pos.setXYZ(i, ox, oy, oz);
           continue;
         }
-        // Arc length d behind the tear front wraps around a growing spiral.
+        // Freed foil hinges back at the perforation like a lid, slides up,
+        // and ripples like a banner. k = how long this column has been free.
         const d = front - ox;
-        const th = (-r0 + Math.sqrt(r0 * r0 + 2 * growth * d)) / growth;
-        const r = r0 + growth * th;
-        const rr = Math.max(r - oz, 0.012);
-        const flutter = Math.sin(time * 22 + oy * 9 + th * 2) * flutterAmp * Math.min(th, 1);
+        const k = Math.min(d / (W * 0.55), 1);
+        const ry = oy - yPerf;
+        const ang = k * 1.1;                  // backward lean, up to ~63°
+        const rise = k * k * 0.45;
+        const ripple = Math.sin(d * 6 - time * 12) * (0.03 + 0.05 * vAmp) * k;
         pos.setXYZ(
           i,
-          front - Math.sin(th) * rr,
-          oy + th * 0.006,                       // curl drifts up slightly
-          r - Math.cos(th) * rr + flutter
+          ox,
+          yPerf + ry * Math.cos(ang) + rise,
+          oz * Math.cos(ang) - ry * Math.sin(ang) + ripple
         );
       }
       pos.needsUpdate = true;
       geo.computeVertexNormals();
+
+      // Glow rides the cut; intensity follows pull velocity.
+      const cutX = THREE.MathUtils.clamp(front, -W / 2, W / 2);
+      const slicing = !this.detached && p > 0.01 && p < 1.05;
+      spark.visible = line.visible = slicing;
+      spark.position.x = cutX;
+      spark.scale.setScalar(0.24 + 0.28 * vAmp + Math.sin(time * 30) * 0.02);
+      line.scale.x = Math.max(cutX + W / 2, 1e-3);
+      line.position.x = (cutX - W / 2) / 2;
+      lineMat.opacity = 0.45 + 0.35 * vAmp;
 
       // Tab rides the tear front
       tab.position.set(Math.min(front, W / 2), yTab, 0.12);
@@ -194,8 +250,10 @@ export function createTearStrip(PACK, foilMaterial) {
     detach() {
       if (this.detached) return;
       this.detached = true;
-      flyVel.set(1.9, 1.5, 1.6);
-      spin.set(2.5, 7, 4.5);
+      spark.visible = false;
+      line.visible = false;
+      flyVel.set(0.5, 2.6, 1.2);   // pops upward, drifting toward the camera
+      spin.set(-2.2, 0.8, 0.6);    // lazy backward tumble
     },
 
     // Fly-off animation after detach.
