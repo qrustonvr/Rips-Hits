@@ -84,11 +84,16 @@ What it does:
 - Fetches each card's full object and reads USD price
   (`pricing.tcgplayer.<variant>.marketPrice`, highest variant; falls back to
   Cardmarket EUR→USD). Cards with no price are dropped.
-- **Checks that each card has an `image` field.** Cards with no image are
-  silently dropped from the pool — they would render as a blank card in the
-  app. Log each dropped card as `Skip (no image): <id>`. This must happen
-  BEFORE pool selection and weight computation so imageless cards never make
-  it into the final JSON.
+- **Verifies each card's image ASSET actually loads.** Checking that the API
+  object has an `image` field is NOT enough — some cards (e.g. sm12-22
+  "Charizard & Braixen GX") have the field but the CDN file at
+  `{image}/high.webp` is missing, rendering a blank card in the app. The
+  script issues a real HTTP request for the asset and confirms a valid WEBP
+  response; definitively-missing assets are dropped
+  (`Skip (image missing on CDN)`). If the CDN is unreachable (network error,
+  not 404), the card is kept with a `WARNING (image unverified)` — re-run
+  `--verify-pack` later to confirm. This happens BEFORE pool selection and
+  weight computation.
 - Filters to `min_value ≤ value ≤ max_value`, spreads the pool across the
   price range, caps to pool size.
 - Computes value-based weights (see Step 3) balanced for `cardsPerPack` draws.
@@ -114,8 +119,8 @@ python3 .claude/skills/pack-creator/scripts/pack_creator.py \
 ```
 
 This re-fetches every card id and flags any stored name that disagrees with the
-real TCGdex card (name mismatch or non-Pokémon), exiting non-zero if any are
-found — run it in CI before shipping a pack.
+real TCGdex card (name mismatch, non-Pokémon, or missing image asset on the
+CDN), exiting non-zero if any are found — run it in CI before shipping a pack.
 
 ---
 
@@ -132,7 +137,16 @@ EV_pack = EV_draw * cardsPerPack  # draws are independent (with replacement)
 
 Solve `k` by bisection so `EV_pack ≈ price * (1 - margin)`, i.e.
 `EV_draw_target = price * (1 - margin) / cardsPerPack`. Higher `k` shifts weight
-to cheaper cards and lowers EV. Constraint: EV must stay ≤ price; if even large
+to cheaper cards and lowers EV.
+
+**Chase floor (`--chase`, default 0.5):** a pure power law makes top cards
+astronomically rare. `chase` is the fraction of the per-draw EV budget spent
+on a UNIFORM floor across all cards: `u = chase * EV_draw_target / mean(v)`,
+then `p_i = (1-u) * powerlaw_i + u/n`. This gives expensive cards a real floor
+chance (e.g. the $365 chase went from 1-in-8200 to 1-in-2400 per draw at
+chase=0.5), paid for by steepening `k` on the rest — EV and margin stay
+exactly on target. `--chase 0` restores the old pure inverse-value behaviour;
+higher values flatten the top end further. Constraint: EV must stay ≤ price; if even large
 `k` can't get there (cheapest card too expensive for the price), the script
 flags `evTargetMet: false` — warn the user, the pack can't be profitable as set.
 

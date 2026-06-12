@@ -37,6 +37,7 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from collections import Counter
@@ -95,6 +96,27 @@ def get_card(card_id):
     raise last
 
 
+def image_asset_ok(image_base):
+    """Verify the card's image ASSET actually loads, not just that the API
+    advertises an `image` field. Some cards (e.g. sm12-22) have the field but
+    the CDN file is missing — they render blank in the app.
+    Returns True (loads), False (definitively missing/404), or None (network
+    error — CDN unreachable, can't tell)."""
+    if not image_base:
+        return False
+    url = f"{image_base}/high.webp"
+    req = urllib.request.Request(url, headers={**UA, "Range": "bytes=0-127"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = r.read(128)
+            # webp files start with RIFF....WEBP
+            return len(body) >= 12 and body[:4] == b"RIFF" and body[8:12] == b"WEBP"
+    except urllib.error.HTTPError:
+        return False          # 404/410 etc — asset definitively missing
+    except Exception:         # noqa: BLE001 — timeout/DNS: CDN unreachable
+        return None
+
+
 # --------------------------- value extraction ----------------------------- #
 # Variant keys span both naming styles seen in the wild / in src/data/tcgdex.js.
 TCG_VARIANTS = ("holofoil", "1st-edition-holofoil", "holo", "reverse-holofoil",
@@ -129,23 +151,39 @@ def tier_for_value(v):
 
 # --------------------------- weighting / EV -------------------------------- #
 
-def ev_for_k(values, k):
+def uniform_mass(values, target_ev, chase):
+    """Convert `chase` (fraction of the per-draw EV BUDGET to spend on a
+    uniform floor, 0..1) into `u`, the share of pull probability spread evenly
+    across all cards. Spending EV rather than raw probability keeps the knob
+    meaningful for any pool: u = chase * target_ev / mean(values), clamped so
+    at least a sliver of probability mass remains for the power law."""
+    if chase <= 0:
+        return 0.0
+    mean_v = sum(values) / len(values)
+    return min(chase * target_ev / mean_v, 0.95)
+
+
+def ev_for_k(values, k, u=0.0):
+    """Per-draw probabilities: (1-u) of the mass follows the inverse-value
+    power law; `u` is spread evenly across all cards so expensive cards keep a
+    real floor chance instead of vanishing odds."""
     w = [1.0 / (v ** k) for v in values]
     s = sum(w)
-    p = [wi / s for wi in w]
+    n = len(values)
+    p = [(1 - u) * (wi / s) + u / n for wi in w]
     ev = sum(pi * vi for pi, vi in zip(p, values))
     return ev, p
 
 
-def solve_k(values, target_ev, lo=0.0, hi=20.0, iters=80):
+def solve_k(values, target_ev, lo=0.0, hi=20.0, iters=80, u=0.0):
     """EV decreases monotonically as k grows. Bisection for k where EV~=target.
     Returns (k, target_met)."""
-    ev_hi, _ = ev_for_k(values, hi)
+    ev_hi, _ = ev_for_k(values, hi, u)
     if ev_hi > target_ev:
         return hi, False  # even max decay can't get EV low enough
     for _ in range(iters):
         mid = (lo + hi) / 2
-        ev, _ = ev_for_k(values, mid)
+        ev, _ = ev_for_k(values, mid, u)
         if ev > target_ev:
             lo = mid
         else:
@@ -212,6 +250,7 @@ def name_matches(card_name, allowed, exact=False):
 
 def build_pack(name, price, max_value, allowed, game="pokemon",
                cards_per_pack=5, pool_size=25, min_value=0.01, margin=0.30,
+               chase=0.5,
                pack_texture="/packs/RipsNHits_Default.png", release_date=None,
                exact_name=False, sample=None, sleep=0.15):
     # 1. gather candidate full-card objects
@@ -254,10 +293,16 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
         val, src = extract_usd_value(card)
         if val is None or val < min_value or val > max_value:
             continue
-        # Drop cards with no image — they render as a blank card in the app.
-        if not card.get("image"):
-            print(f"  Skip (no image): {card.get('id')} {cname}", file=sys.stderr)
+        # Drop cards whose image doesn't actually LOAD (field-present is not
+        # enough — sm12-22 has an `image` field but the CDN file is missing).
+        img_ok = image_asset_ok(card.get("image"))
+        if img_ok is False:
+            print(f"  Skip (image missing on CDN): {card.get('id')} {cname}",
+                  file=sys.stderr)
             continue
+        if img_ok is None:
+            print(f"  WARNING (CDN unreachable, image unverified): "
+                  f"{card.get('id')} {cname}", file=sys.stderr)
         priced.append({
             "id": card.get("id"),
             "name": card.get("name"),
@@ -283,8 +328,9 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
     values = [c["value"] for c in priced]
     target_ev_pack = price * (1 - margin)
     target_ev_draw = target_ev_pack / max(1, cards_per_pack)
-    k, ok = solve_k(values, target_ev_draw)
-    ev_draw, probs = ev_for_k(values, k)
+    u = uniform_mass(values, target_ev_draw, chase)
+    k, ok = solve_k(values, target_ev_draw, u=u)
+    ev_draw, probs = ev_for_k(values, k, u=u)
     ev_pack = ev_draw * cards_per_pack
 
     for c, p in zip(priced, probs):
@@ -322,7 +368,9 @@ def build_pack(name, price, max_value, allowed, game="pokemon",
             "marginPct": round((1 - ev_pack / price) * 100, 1),
             "evTargetMet": ok,
             "chanceHitOverPrice_perPack": round(win_pack, 6),
-            "weighting": {"method": "inverse_value_ev_balanced", "k": round(k, 4)},
+            "weighting": {"method": "inverse_value_ev_balanced",
+                          "k": round(k, 4), "chase": chase,
+                          "uniformMass": round(u, 4)},
             "pricingSource": "tcgplayer.marketPrice (fallback cardmarket.trend)",
             "speciesVerified": True,
             "targetDexIds": sorted(target_dex),
@@ -410,8 +458,14 @@ def verify_pack(path, sleep=0.12):
             dex = live.get("dexId") or []
             sl, ll = stored.lower().strip(), lname.lower().strip()
             name_ok = bool(sl) and bool(ll) and (sl in ll or ll in sl)
-            ok = name_ok and cat == "Pokemon"
-            status = "ok" if ok else ("NOT-POKEMON" if cat != "Pokemon" else "NAME-MISMATCH")
+            img_ok = image_asset_ok(live.get("image"))
+            ok = name_ok and cat == "Pokemon" and img_ok is not False
+            status = ("ok" if ok else
+                      "NOT-POKEMON" if cat != "Pokemon" else
+                      "NO-IMAGE" if img_ok is False else
+                      "NAME-MISMATCH")
+            if ok and img_ok is None:
+                status = "ok (image unverified — CDN unreachable)"
             if not ok:
                 mismatches += 1
             print(f"{cid:<16}{stored:<26}{lname:<26}{cat:<9}{str(dex):<8}{status}")
@@ -463,6 +517,12 @@ def main():
     ap.add_argument("--cards-per-pack", type=int, default=5)
     ap.add_argument("--pool-size", type=int, default=25)
     ap.add_argument("--margin", type=float, default=0.30)
+    ap.add_argument("--chase", type=float, default=0.5,
+                    help="fraction of the EV budget (0..1) spent on a uniform "
+                         "floor across all cards — higher means expensive "
+                         "cards pull noticeably more often, paid for by more "
+                         "of the cheapest cards elsewhere. 0 = pure "
+                         "inverse-value (old behaviour)")
     ap.add_argument("--pack-texture", default="/packs/RipsNHits_Default.png")
     ap.add_argument("--release-date", default=None)
     ap.add_argument("--exact-name", action="store_true",
@@ -490,7 +550,7 @@ def main():
     pack = build_pack(
         args.name, args.price, args.max_value, args.pokemon, game=args.game,
         cards_per_pack=args.cards_per_pack, pool_size=args.pool_size,
-        min_value=args.min_value, margin=args.margin,
+        min_value=args.min_value, margin=args.margin, chase=args.chase,
         pack_texture=args.pack_texture, release_date=args.release_date,
         exact_name=args.exact_name,
         sample=(MOCK_CARDS if args.mock else None))

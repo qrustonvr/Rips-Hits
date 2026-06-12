@@ -215,19 +215,23 @@ export function createTearStrip(PACK, foilMaterial) {
           pos.setXYZ(i, ox, oy, oz);
           continue;
         }
-        // Freed foil hinges back at the perforation like a lid, slides up,
-        // and ripples like a banner. k = how long this column has been free.
+        // Freed foil hinges back at the perforation like a lid and slides up.
+        // k drives the initial peel-open; kk keeps growing with distance so
+        // the older foil never freezes flat — it keeps leaning past vertical,
+        // keeps climbing, and undulates like a streamer.
         const d = front - ox;
         const k = Math.min(d / (W * 0.55), 1);
+        const kk = d / W;
         const ry = oy - yPerf;
-        const ang = k * 1.1;                  // backward lean, up to ~63°
-        const rise = k * k * 0.45;
-        const ripple = Math.sin(d * 6 - time * 12) * (0.03 + 0.05 * vAmp) * k;
+        const ang = Math.min(0.9 * k + 0.5 * kk, 2.0);   // lean on past ~90°
+        const rise = 0.4 * k * k + 0.22 * kk;
+        const wave = Math.sin(d * 4.5 - time * 12) *
+                     (0.04 + 0.06 * vAmp) * Math.min(0.3 * k + kk, 1.2);
         pos.setXYZ(
           i,
           ox,
-          yPerf + ry * Math.cos(ang) + rise,
-          oz * Math.cos(ang) - ry * Math.sin(ang) + ripple
+          yPerf + ry * Math.cos(ang) + rise + wave * 0.5,
+          oz * Math.cos(ang) - ry * Math.sin(ang) + wave
         );
       }
       pos.needsUpdate = true;
