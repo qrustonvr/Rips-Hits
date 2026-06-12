@@ -657,3 +657,45 @@ html, body {
 .pack-popup,
 .coll-modal-overlay,
 .coll-modal { pointer-events: auto; }
+
+/* ===== Desktop / wide screens =====
+   The base layout is mobile-first: grids use 1fr columns and sheets span the
+   full viewport width, which balloons on a monitor. Cap everything here. */
+@media (min-width: 700px) {
+  /* Center screen content in a comfortable column */
+  .home-wrap,
+  .coll-wrap {
+    width: 100%;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  /* Pack tiles: size by tile, not by fraction of the viewport */
+  .pack-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 150px));
+    justify-content: start;
+    gap: 12px;
+  }
+
+  /* Collection cards: keep them card-sized */
+  .coll-grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px;
+  }
+  .coll-name { font-size: 10px; }
+  .coll-pill { font-size: 8px; }
+
+  /* Tab bar: don't let two buttons each span half the monitor */
+  #tabbar { justify-content: center; }
+  #tabbar button { flex: 0 0 120px; }
+
+  /* Bottom sheets (pack popup + card detail) become centered panels */
+  .pack-popup,
+  .coll-modal {
+    max-width: 460px;
+    margin: 0 auto;
+    border: 1px solid #ffffff18;
+  }
+
+  /* Summary card grid already capped via .sum-card--wide */
+}

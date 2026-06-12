@@ -216,15 +216,16 @@ export function createTearStrip(PACK, foilMaterial) {
           continue;
         }
         // Freed foil hinges back at the perforation like a lid and slides up.
-        // k drives the initial peel-open; kk keeps growing with distance so
-        // the older foil never freezes flat — it keeps leaning past vertical,
-        // keeps climbing, and undulates like a streamer.
+        // k drives the initial peel-open; kk keeps growing with distance.
+        // The lean caps short of horizontal (so the ribbon can never lie
+        // flat) and the rise is concave-up, so the tail curves continuously
+        // skyward and undulates like a streamer.
         const d = front - ox;
         const k = Math.min(d / (W * 0.55), 1);
         const kk = d / W;
         const ry = oy - yPerf;
-        const ang = Math.min(0.9 * k + 0.5 * kk, 2.0);   // lean on past ~90°
-        const rise = 0.4 * k * k + 0.22 * kk;
+        const ang = Math.min(0.85 * k + 0.25 * kk, 1.3);  // ≤ ~75°
+        const rise = 0.3 * k * k + 0.45 * kk + 0.22 * kk * kk;
         const wave = Math.sin(d * 4.5 - time * 12) *
                      (0.04 + 0.06 * vAmp) * Math.min(0.3 * k + kk, 1.2);
         pos.setXYZ(
