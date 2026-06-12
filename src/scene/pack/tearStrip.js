@@ -1,21 +1,134 @@
-// Tear strip: a segmented mesh along the pack top that peels and curls
-// around a vertical axis as you pull the tab across, then detaches and
-// flies off. Deformation is CPU-side (small vertex count, mobile-cheap).
+// Tear strip: the pack's top crimp, modelled as a corrugated foil band with
+// a serrated perforation edge. It peels and curls around a vertical axis as
+// you pull the tab across, then detaches and flies off. Deformation is
+// CPU-side (small vertex count, mobile-cheap).
 import * as THREE from 'three';
 
+const ss = (a, b, x) => {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
+};
+const tri = (x, p) => {
+  const t = ((x / p) % 1 + 1) % 1;
+  return Math.abs(t * 2 - 1) * 2 - 1;
+};
+
+// ---------------------------------------------------------------------------
+// Strip geometry: front + back sheets covering [perforation .. above pack
+// top]. The bottom rows bulge to meet the body's pinched thickness, the rest
+// flattens into the corrugated crimp. The bottom edge is zig-zagged so the
+// torn-off strip reads as perforated. UVs sample the top zone of the same
+// full pack texture the body uses (v -> 1 at the pack top).
+// ---------------------------------------------------------------------------
+function buildStripGeometry(PACK) {
+  const { W, H, D, STRIP_H } = PACK;
+  const yBot = H / 2 - STRIP_H;        // perforation line
+  const yTop = H / 2 + 0.06;           // crimped area extends above pack top
+  const NX = 64, NY = 8;
+  const crimpHalf = 0.009;
+
+  const pos = [], uvs = [], idx = [];
+  for (const s of [1, -1]) {
+    const base = pos.length / 3;
+    for (let iy = 0; iy <= NY; iy++) {
+      for (let ix = 0; ix <= NX; ix++) {
+        const x = -W / 2 + (ix / NX) * W;
+        let y = yBot + (iy / NY) * (yTop - yBot);
+        // Serrated tear edge, overlapping the body slightly so no gap shows
+        // while sealed.
+        if (iy === 0) y = yBot - 0.025 + 0.02 * (0.5 + 0.5 * tri(x, 0.1));
+
+        // Match the body's pinched thickness at the perforation, then
+        // flatten into the crimp.
+        const fx = Math.max(1 - Math.pow(Math.abs(2 * x / W), 2.4), 0);
+        const bodyHalf = (D / 2) * Math.sqrt(fx) * 0.30;
+        const k = ss(yBot + 0.02, yBot + 0.10, y);
+        const taper = ss(0, 0.018, W / 2 - Math.abs(x)) *
+                      (1 - 0.6 * ss(yTop - 0.025, yTop, y));
+        // +0.004 keeps the overlap proud of the body (no z-fighting).
+        const half = (Math.max(bodyHalf * (1 - k), crimpHalf) + 0.004 * (1 - k)) * taper;
+        const wave = 0.011 * tri(x, 0.082) * k;   // crimp corrugation
+
+        pos.push(x, y, wave + s * half);
+        // Cap v just below 1 — the art's topmost pixel rows are dark border.
+        uvs.push(s > 0 ? ix / NX : 1 - ix / NX, Math.min((y + H / 2) / H, 0.985));
+      }
+    }
+    for (let iy = 0; iy < NY; iy++) {
+      for (let ix = 0; ix < NX; ix++) {
+        const a = base + iy * (NX + 1) + ix;
+        const b = a + 1, c = a + NX + 1, d = c + 1;
+        if (s > 0) idx.push(a, b, d, a, d, c);
+        else       idx.push(a, d, b, a, c, d);
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Grab tab: rounded pull-tag with an embossed chevron pointing along the
+// tear direction. Returned as a group so the pulse/scale in pack.js works.
+function buildTab() {
+  const tab = new THREE.Group();
+
+  const w = 0.26, h = 0.14, r = 0.055;
+  const shape = new THREE.Shape();
+  shape.moveTo(-w / 2 + r, -h / 2);
+  shape.lineTo(w / 2 - r, -h / 2);
+  shape.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+  shape.lineTo(w / 2, h / 2 - r);
+  shape.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+  shape.lineTo(-w / 2 + r, h / 2);
+  shape.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+  shape.lineTo(-w / 2, -h / 2 + r);
+  shape.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+
+  const tagGeo = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.025,
+    bevelEnabled: true,
+    bevelThickness: 0.008,
+    bevelSize: 0.008,
+    bevelSegments: 2,
+  });
+  tagGeo.center();
+  const tagMat = new THREE.MeshStandardMaterial({
+    color: 0xb6ff3c,
+    emissive: 0x5a8c10,
+    metalness: 0.3,
+    roughness: 0.35,
+    transparent: true,
+  });
+  tab.add(new THREE.Mesh(tagGeo, tagMat));
+
+  const chev = new THREE.Shape();
+  chev.moveTo(-0.035, 0.045);
+  chev.lineTo(0.01, 0.045);
+  chev.lineTo(0.055, 0);
+  chev.lineTo(0.01, -0.045);
+  chev.lineTo(-0.035, -0.045);
+  chev.lineTo(0.01, 0);
+  chev.closePath();
+  const chevMat = new THREE.MeshBasicMaterial({ color: 0x1c2a08, transparent: true });
+  const chevMesh = new THREE.Mesh(new THREE.ShapeGeometry(chev), chevMat);
+  chevMesh.position.z = 0.024;
+  tab.add(chevMesh);
+
+  return { tab, mats: [tagMat, chevMat] };
+}
+
 export function createTearStrip(PACK, foilMaterial) {
-  const { W, H, STRIP_H } = PACK;
+  const { W, H } = PACK;
 
   const group = new THREE.Group();
-
-  const yBot = H / 2 - STRIP_H;        // perforation line
-  const stripH = STRIP_H + 0.06;       // strip + crimped area above pack top
-  const yCenter = yBot + stripH / 2;
-  const depth = 0.06;
   const yTab = H / 2 - 0.1;
 
-  const geo = new THREE.BoxGeometry(W, stripH, depth, 48, 6, 1);
-  geo.translate(0, yCenter, 0);        // pack-local coords baked in
+  const geo = buildStripGeometry(PACK);
   const orig = geo.attributes.position.array.slice();
 
   const mat = foilMaterial.clone();
@@ -24,16 +137,7 @@ export function createTearStrip(PACK, foilMaterial) {
   const mesh = new THREE.Mesh(geo, mat);
   group.add(mesh);
 
-  // The grab tab
-  const tabMat = new THREE.MeshStandardMaterial({
-    color: 0xb6ff3c,
-    emissive: 0x5a8c10,
-    metalness: 0.3,
-    roughness: 0.4,
-    transparent: true,
-  });
-  const tab = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.05, 24), tabMat);
-  tab.rotation.x = Math.PI / 2;
+  const { tab, mats: tabMats } = buildTab();
   tab.position.set(-W / 2 + 0.1, yTab, 0.12);
   group.add(tab);
 
@@ -105,7 +209,7 @@ export function createTearStrip(PACK, foilMaterial) {
       this._fadeT += dt;
       const o = Math.max(1 - this._fadeT * 1.4, 0);
       mat.opacity = o;
-      tabMat.opacity = o;
+      for (const m of tabMats) m.opacity = o;
       if (this._fadeT > 0.85) {
         this.done = true;
         group.visible = false;
